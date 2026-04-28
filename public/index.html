@@ -126,6 +126,17 @@
       $('generateBtnText').textContent = loading ? 'Generating…' : 'Generate Smart Scene';
     }
 
+    // CSRF token fetched once per session and sent as a custom header
+    let csrfToken = '';
+
+    async function fetchCsrfToken() {
+      try {
+        const res = await fetch('/api/csrf-token');
+        const data = await res.json();
+        csrfToken = data.csrfToken || '';
+      } catch {}
+    }
+
     // ── Init ───────────────────────────────────────────────────────────────
 
     async function init() {
@@ -146,6 +157,7 @@
           </a>`;
         showEl('dashboardSection');
         hideEl('connectSection');
+        fetchCsrfToken();
         loadPlaylists();
 
         if (params.get('connected') === 'true') {
@@ -243,7 +255,10 @@
       try {
         const res = await fetch('/api/scene', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
+          },
           body: JSON.stringify({ playlistId, sceneDescription }),
         });
 

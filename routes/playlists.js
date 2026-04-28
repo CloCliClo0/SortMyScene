@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const axios = require('axios');
 const { filterSongsForScene } = require('../services/gemini');
@@ -17,12 +18,15 @@ function requireAuth(req, res, next) {
 }
 
 /**
- * Validates that a Deezer resource ID consists only of digits (safe for URL embedding).
- * @param {string} id
- * @returns {boolean}
+ * Middleware: validate the CSRF token sent in the X-CSRF-Token header against
+ * the value stored in the session.
  */
-function isValidId(id) {
-  return /^\d+$/.test(id);
+function verifyCsrf(req, res, next) {
+  const tokenFromHeader = req.headers['x-csrf-token'];
+  if (!tokenFromHeader || tokenFromHeader !== req.session.csrfToken) {
+    return res.status(403).json({ error: 'Invalid or missing CSRF token.' });
+  }
+  next();
 }
 
 /**
@@ -31,6 +35,17 @@ function isValidId(id) {
  */
 router.get('/status', (req, res) => {
   res.json({ connected: !!req.session.deezerToken });
+});
+
+/**
+ * GET /api/csrf-token
+ * Issues a CSRF token for the current session, used by state-changing endpoints.
+ */
+router.get('/csrf-token', (req, res) => {
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = crypto.randomUUID();
+  }
+  res.json({ csrfToken: req.session.csrfToken });
 });
 
 /**
@@ -54,11 +69,13 @@ router.get('/playlists', requireAuth, async (req, res) => {
  * Returns the tracks of a specific Deezer playlist.
  */
 router.get('/playlists/:id/tracks', requireAuth, async (req, res) => {
-  if (!isValidId(req.params.id)) {
+  // Parse to integer to validate and break any taint from user input
+  const playlistId = parseInt(req.params.id, 10);
+  if (!Number.isInteger(playlistId) || playlistId <= 0) {
     return res.status(400).json({ error: 'Invalid playlist ID.' });
   }
   try {
-    const response = await axios.get(`${DEEZER_API}/playlist/${req.params.id}/tracks`, {
+    const response = await axios.get(`${DEEZER_API}/playlist/${playlistId}/tracks`, {
       params: { access_token: req.session.deezerToken },
     });
     res.json(response.data);
@@ -70,24 +87,26 @@ router.get('/playlists/:id/tracks', requireAuth, async (req, res) => {
 
 /**
  * POST /api/scene
- * Body: { playlistId: string, sceneDescription: string }
+ * Body: { playlistId: number|string, sceneDescription: string }
  * Fetches the tracks from the given playlist, passes them through Gemini AI,
  * and returns the filtered list of track IDs.
  */
-router.post('/scene', requireAuth, async (req, res) => {
+router.post('/scene', requireAuth, verifyCsrf, async (req, res) => {
   const { playlistId, sceneDescription } = req.body;
 
   if (!playlistId || !sceneDescription) {
     return res.status(400).json({ error: 'playlistId and sceneDescription are required.' });
   }
 
-  if (!isValidId(String(playlistId))) {
+  // Parse to integer to validate and break any taint from user input
+  const safePlaylistId = parseInt(playlistId, 10);
+  if (!Number.isInteger(safePlaylistId) || safePlaylistId <= 0) {
     return res.status(400).json({ error: 'Invalid playlist ID.' });
   }
 
   try {
     // 1. Fetch tracks from Deezer
-    const tracksResponse = await axios.get(`${DEEZER_API}/playlist/${playlistId}/tracks`, {
+    const tracksResponse = await axios.get(`${DEEZER_API}/playlist/${safePlaylistId}/tracks`, {
       params: { access_token: req.session.deezerToken },
     });
 
