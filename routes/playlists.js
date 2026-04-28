@@ -30,6 +30,18 @@ function verifyCsrf(req, res, next) {
 }
 
 /**
+ * Parses and validates a Deezer resource ID.
+ * Returns the positive integer ID, or null if invalid.
+ * Parsing to an integer also breaks any taint from user-controlled string input.
+ * @param {unknown} raw
+ * @returns {number|null}
+ */
+function parseResourceId(raw) {
+  const id = parseInt(raw, 10);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/**
  * GET /api/status
  * Returns whether the user is currently authenticated with Deezer.
  */
@@ -70,8 +82,8 @@ router.get('/playlists', requireAuth, async (req, res) => {
  */
 router.get('/playlists/:id/tracks', requireAuth, async (req, res) => {
   // Parse to integer to validate and break any taint from user input
-  const playlistId = parseInt(req.params.id, 10);
-  if (!Number.isInteger(playlistId) || playlistId <= 0) {
+  const playlistId = parseResourceId(req.params.id);
+  if (playlistId === null) {
     return res.status(400).json({ error: 'Invalid playlist ID.' });
   }
   try {
@@ -99,8 +111,8 @@ router.post('/scene', requireAuth, verifyCsrf, async (req, res) => {
   }
 
   // Parse to integer to validate and break any taint from user input
-  const safePlaylistId = parseInt(playlistId, 10);
-  if (!Number.isInteger(safePlaylistId) || safePlaylistId <= 0) {
+  const safePlaylistId = parseResourceId(playlistId);
+  if (safePlaylistId === null) {
     return res.status(400).json({ error: 'Invalid playlist ID.' });
   }
 
