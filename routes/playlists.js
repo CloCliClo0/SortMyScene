@@ -17,6 +17,15 @@ function requireAuth(req, res, next) {
 }
 
 /**
+ * Validates that a Deezer resource ID consists only of digits (safe for URL embedding).
+ * @param {string} id
+ * @returns {boolean}
+ */
+function isValidId(id) {
+  return /^\d+$/.test(id);
+}
+
+/**
  * GET /api/status
  * Returns whether the user is currently authenticated with Deezer.
  */
@@ -45,6 +54,9 @@ router.get('/playlists', requireAuth, async (req, res) => {
  * Returns the tracks of a specific Deezer playlist.
  */
 router.get('/playlists/:id/tracks', requireAuth, async (req, res) => {
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid playlist ID.' });
+  }
   try {
     const response = await axios.get(`${DEEZER_API}/playlist/${req.params.id}/tracks`, {
       params: { access_token: req.session.deezerToken },
@@ -67,6 +79,10 @@ router.post('/scene', requireAuth, async (req, res) => {
 
   if (!playlistId || !sceneDescription) {
     return res.status(400).json({ error: 'playlistId and sceneDescription are required.' });
+  }
+
+  if (!isValidId(String(playlistId))) {
+    return res.status(400).json({ error: 'Invalid playlist ID.' });
   }
 
   try {

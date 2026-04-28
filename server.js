@@ -20,7 +20,12 @@ app.use(
     secret: process.env.SESSION_SECRET || 'sortmyscene-dev-secret',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false }, // set to true when serving over HTTPS
+    cookie: {
+      // Restrict cookies to same-site requests (CSRF mitigation)
+      sameSite: 'strict',
+      // Require HTTPS in production
+      secure: process.env.NODE_ENV === 'production',
+    },
   })
 );
 
