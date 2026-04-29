@@ -11,7 +11,7 @@
     "build:web": "npm --prefix web install --ignore-scripts --include=dev --include=optional && npm --prefix web run build",
     "build": "npm --prefix web install --ignore-scripts --include=dev --include=optional && npm run build:web && npm run prisma:generate",
     "postinstall": "npm --prefix web install --ignore-scripts --include=dev --include=optional",
-    "start": "node server.js",
+    "start": "npm run build:web && node server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"

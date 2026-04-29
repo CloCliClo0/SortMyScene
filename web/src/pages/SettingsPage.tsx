@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useI18n } from '../i18n/LanguageContext';
+
+type ProviderStatus = 'loading' | 'connected' | 'not_connected';
 
 function SettingsPage() {
   const { t } = useI18n();
@@ -7,6 +9,37 @@ function SettingsPage() {
   const [enhanceMetadata, setEnhanceMetadata] = useState(true);
   const [autoFillBpm, setAutoFillBpm] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [deezerStatus, setDeezerStatus] = useState<ProviderStatus>('loading');
+  const [spotifyStatus, setSpotifyStatus] = useState<ProviderStatus>('loading');
+  const [providerMessage, setProviderMessage] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('spotifyAuth') === 'success') {
+      setProviderMessage(t('settings.spotifyConnected'));
+    } else if (params.get('spotifyAuth') === 'error') {
+      setProviderMessage(t('settings.spotifyError'));
+    } else if (params.get('deezerAuth') === 'success') {
+      setProviderMessage(t('settings.deezerConnected'));
+    } else if (params.get('deezerAuth') === 'error') {
+      setProviderMessage(t('settings.deezerError'));
+    }
+
+    Promise.all([
+      fetch('/api/tokens/deezer', { credentials: 'include' }),
+      fetch('/api/tokens/spotify', { credentials: 'include' }),
+    ])
+      .then(async ([deezerRes, spotifyRes]) => {
+        const deezerPayload = deezerRes.ok ? await deezerRes.json() : null;
+        const spotifyPayload = spotifyRes.ok ? await spotifyRes.json() : null;
+        setDeezerStatus(deezerPayload ? 'connected' : 'not_connected');
+        setSpotifyStatus(spotifyPayload ? 'connected' : 'not_connected');
+      })
+      .catch(() => {
+        setDeezerStatus('not_connected');
+        setSpotifyStatus('not_connected');
+      });
+  }, [t]);
 
   return (
     <section className="space-y-6">
@@ -17,22 +50,39 @@ function SettingsPage() {
 
       <article className="card-panel p-6">
         <h3 className="mb-4 text-display text-3xl font-semibold text-white">{t('settings.account')}</h3>
+        {providerMessage && <p className="mb-4 text-sm text-cyan-300">{providerMessage}</p>}
         <div className="space-y-3">
           <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-4">
             <div>
               <p className="font-semibold text-white">Spotify</p>
-              <p className="text-sm text-slate-400">{t('settings.connectedAs')} alex_v_89</p>
+              <p className="text-sm text-slate-400">
+                {spotifyStatus === 'connected' ? t('settings.statusConnected') : t('settings.statusNotConnected')}
+              </p>
             </div>
-            <button className="rounded-full border border-red-300/50 px-4 py-1 text-xs text-red-200">{t('settings.disconnect')}</button>
+            {spotifyStatus === 'connected' ? (
+              <span className="rounded-full border border-emerald-300/50 px-4 py-1 text-xs text-emerald-200">{t('settings.connected')}</span>
+            ) : (
+              <a href="/api/auth/spotify" className="rounded-full border border-cyan-300/50 px-4 py-1 text-xs text-cyan-200 hover:bg-cyan-500/10">
+                {t('settings.connect')}
+              </a>
+            )}
           </div>
           <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-4">
             <div>
               <p className="font-semibold text-white">Deezer</p>
-              <p className="text-sm text-slate-400">{t('settings.connectedAs')} sonic_obsidian</p>
+              <p className="text-sm text-slate-400">
+                {deezerStatus === 'connected' ? t('settings.statusConnected') : t('settings.statusNotConnected')}
+              </p>
             </div>
-            <button className="rounded-full border border-red-300/50 px-4 py-1 text-xs text-red-200">{t('settings.disconnect')}</button>
+            {deezerStatus === 'connected' ? (
+              <span className="rounded-full border border-emerald-300/50 px-4 py-1 text-xs text-emerald-200">{t('settings.connected')}</span>
+            ) : (
+              <a href="/api/auth/deezer" className="rounded-full border border-cyan-300/50 px-4 py-1 text-xs text-cyan-200 hover:bg-cyan-500/10">
+                {t('settings.connect')}
+              </a>
+            )}
           </div>
-          <button className="text-sm text-cyan-300">+ {t('settings.linkService')}</button>
+          <p className="text-sm text-slate-400">{t('settings.linkService')}</p>
         </div>
       </article>
 

@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 
 const TOKEN_COOKIE = 'auth_token';
+const OAUTH_STATE_TTL = '10m';
 
 function signToken(user) {
   const secret = process.env.JWT_SECRET || 'dev-insecure-secret-change-me';
@@ -20,6 +21,64 @@ function setAuthCookie(res, token) {
     sameSite: 'lax',
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+}
+
+function getAppOrigin() {
+  return process.env.APP_ORIGIN || 'http://localhost:5173';
+}
+
+function buildOAuthState(userId, provider) {
+  const secret = process.env.JWT_SECRET || 'dev-insecure-secret-change-me';
+  return jwt.sign(
+    {
+      provider,
+      purpose: 'oauth-link',
+    },
+    secret,
+    {
+      subject: String(userId),
+      expiresIn: OAUTH_STATE_TTL,
+    }
+  );
+}
+
+function verifyOAuthState(stateToken, expectedProvider) {
+  const secret = process.env.JWT_SECRET || 'dev-insecure-secret-change-me';
+  const payload = jwt.verify(stateToken, secret);
+
+  if (!payload || payload.provider !== expectedProvider || payload.purpose !== 'oauth-link') {
+    throw new Error('Invalid OAuth state');
+  }
+
+  const userId = Number(payload.sub);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw new Error('Invalid OAuth state subject');
+  }
+
+  return userId;
+}
+
+async function saveOAuthToken({ userId, provider, accessToken, refreshToken, expiresIn }) {
+  await prisma.oAuthToken.upsert({
+    where: {
+      user_id_provider: {
+        user_id: userId,
+        provider,
+      },
+    },
+    update: {
+      access_token: accessToken,
+      refresh_token: refreshToken || null,
+      expires_in: Number.isFinite(Number(expiresIn)) ? Number(expiresIn) : null,
+    },
+    create: {
+      user_id: userId,
+      provider,
+      access_token: accessToken,
+      refresh_token: refreshToken || null,
+      expires_in: Number.isFinite(Number(expiresIn)) ? Number(expiresIn) : null,
+    },
   });
 }
 
@@ -140,11 +199,159 @@ function googleCallback(req, res) {
     const user = req.user;
     const token = signToken(user);
     setAuthCookie(res, token);
-    const appOrigin = process.env.APP_ORIGIN || 'http://localhost:5173';
+    const appOrigin = getAppOrigin();
     return res.redirect(`${appOrigin}/?googleAuth=success`);
   } catch (err) {
-    const appOrigin = process.env.APP_ORIGIN || 'http://localhost:5173';
+    const appOrigin = getAppOrigin();
     return res.redirect(`${appOrigin}/login?error=google_failed`);
+  }
+}
+
+function connectSpotify(req, res) {
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const callbackUrl = process.env.SPOTIFY_CALLBACK_URL || `${getAppOrigin()}/api/auth/spotify/callback`;
+
+  if (!clientId) {
+    return res.status(500).json({ message: 'SPOTIFY_CLIENT_ID is not configured' });
+  }
+
+  const state = buildOAuthState(req.user.id, 'spotify');
+  const scope = [
+    'user-read-email',
+    'user-read-private',
+    'playlist-read-private',
+    'playlist-read-collaborative',
+  ].join(' ');
+
+  const authUrl = new URL('https://accounts.spotify.com/authorize');
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('client_id', clientId);
+  authUrl.searchParams.set('redirect_uri', callbackUrl);
+  authUrl.searchParams.set('scope', scope);
+  authUrl.searchParams.set('state', state);
+  authUrl.searchParams.set('show_dialog', 'true');
+
+  return res.redirect(authUrl.toString());
+}
+
+async function spotifyCallback(req, res) {
+  const appOrigin = getAppOrigin();
+  try {
+    const code = req.query.code;
+    const state = req.query.state;
+
+    if (!code || !state) {
+      return res.redirect(`${appOrigin}/settings?spotifyAuth=error`);
+    }
+
+    const userId = verifyOAuthState(state, 'spotify');
+    const clientId = process.env.SPOTIFY_CLIENT_ID;
+    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+    const callbackUrl = process.env.SPOTIFY_CALLBACK_URL || `${getAppOrigin()}/api/auth/spotify/callback`;
+
+    if (!clientId || !clientSecret) {
+      return res.redirect(`${appOrigin}/settings?spotifyAuth=error`);
+    }
+
+    const tokenResponse = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: String(code),
+        redirect_uri: callbackUrl,
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error(`Spotify token exchange failed: ${tokenResponse.status}`);
+    }
+
+    const tokenData = await tokenResponse.json();
+
+    await saveOAuthToken({
+      userId,
+      provider: 'spotify',
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresIn: tokenData.expires_in,
+    });
+
+    return res.redirect(`${appOrigin}/settings?spotifyAuth=success`);
+  } catch (_error) {
+    return res.redirect(`${appOrigin}/settings?spotifyAuth=error`);
+  }
+}
+
+function connectDeezer(req, res) {
+  const appId = process.env.DEEZER_APP_ID;
+  const callbackUrl = process.env.DEEZER_CALLBACK_URL || `${getAppOrigin()}/api/auth/deezer/callback`;
+
+  if (!appId) {
+    return res.status(500).json({ message: 'DEEZER_APP_ID is not configured' });
+  }
+
+  const state = buildOAuthState(req.user.id, 'deezer');
+  const authUrl = new URL('https://connect.deezer.com/oauth/auth.php');
+  authUrl.searchParams.set('app_id', appId);
+  authUrl.searchParams.set('redirect_uri', callbackUrl);
+  authUrl.searchParams.set('perms', 'basic_access,email,manage_library,offline_access');
+  authUrl.searchParams.set('state', state);
+
+  return res.redirect(authUrl.toString());
+}
+
+async function deezerCallback(req, res) {
+  const appOrigin = getAppOrigin();
+  try {
+    const code = req.query.code;
+    const state = req.query.state;
+
+    if (!code || !state) {
+      return res.redirect(`${appOrigin}/settings?deezerAuth=error`);
+    }
+
+    const userId = verifyOAuthState(state, 'deezer');
+    const appId = process.env.DEEZER_APP_ID;
+    const appSecret = process.env.DEEZER_APP_SECRET;
+    const callbackUrl = process.env.DEEZER_CALLBACK_URL || `${getAppOrigin()}/api/auth/deezer/callback`;
+
+    if (!appId || !appSecret) {
+      return res.redirect(`${appOrigin}/settings?deezerAuth=error`);
+    }
+
+    const tokenUrl = new URL('https://connect.deezer.com/oauth/access_token.php');
+    tokenUrl.searchParams.set('app_id', appId);
+    tokenUrl.searchParams.set('secret', appSecret);
+    tokenUrl.searchParams.set('code', String(code));
+    tokenUrl.searchParams.set('output', 'json');
+    tokenUrl.searchParams.set('redirect_uri', callbackUrl);
+
+    const tokenResponse = await fetch(tokenUrl.toString());
+    if (!tokenResponse.ok) {
+      throw new Error(`Deezer token exchange failed: ${tokenResponse.status}`);
+    }
+
+    const tokenData = await tokenResponse.json();
+
+    if (!tokenData.access_token) {
+      throw new Error('Missing Deezer access token');
+    }
+
+    await saveOAuthToken({
+      userId,
+      provider: 'deezer',
+      accessToken: tokenData.access_token,
+      refreshToken: null,
+      expiresIn: tokenData.expires,
+    });
+
+    return res.redirect(`${appOrigin}/settings?deezerAuth=success`);
+  } catch (_error) {
+    return res.redirect(`${appOrigin}/settings?deezerAuth=error`);
   }
 }
 
@@ -155,4 +362,8 @@ module.exports = {
   me,
   passport,
   googleCallback,
+  connectSpotify,
+  spotifyCallback,
+  connectDeezer,
+  deezerCallback,
 };

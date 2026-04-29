@@ -1,5 +1,16 @@
 const express = require('express');
-const { register, login, logout, me, passport, googleCallback } = require('../controllers/authController');
+const {
+  register,
+  login,
+  logout,
+  me,
+  passport,
+  googleCallback,
+  connectSpotify,
+  spotifyCallback,
+  connectDeezer,
+  deezerCallback,
+} = require('../controllers/authController');
 const { requireAuth } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -16,5 +27,13 @@ router.get(
   passport.authenticate('google', { failureRedirect: '/login?error=google_failed', session: false }),
   googleCallback
 );
+
+// Spotify OAuth2 (account linking)
+router.get('/spotify', requireAuth, connectSpotify);
+router.get('/spotify/callback', spotifyCallback);
+
+// Deezer OAuth2 (account linking)
+router.get('/deezer', requireAuth, connectDeezer);
+router.get('/deezer/callback', deezerCallback);
 
 module.exports = router;

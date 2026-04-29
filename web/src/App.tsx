@@ -15,10 +15,6 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
-      <Route element={<AppShell />}>
-        <Route path="/" element={<DashboardPage />} />
-      </Route>
-
       <Route
         element={(
           <ProtectedRoute>
@@ -26,6 +22,7 @@ function App() {
           </ProtectedRoute>
         )}
       >
+        <Route path="/" element={<DashboardPage />} />
         <Route path="/studio" element={<SortStudioPage />} />
         <Route path="/scenes" element={<MyScenesPage />} />
         <Route path="/library" element={<RawLibraryPage />} />

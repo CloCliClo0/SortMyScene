@@ -14,6 +14,12 @@ This project is ready for Hostinger Node.js hosting with Express as API manager.
 - `GOOGLE_CLIENT_ID` (if using Google auth)
 - `GOOGLE_CLIENT_SECRET` (if using Google auth)
 - `GOOGLE_CALLBACK_URL` (example: `https://sortmyscene.fr/api/auth/google/callback`)
+- `SPOTIFY_CLIENT_ID` (if using Spotify linking)
+- `SPOTIFY_CLIENT_SECRET` (if using Spotify linking)
+- `SPOTIFY_CALLBACK_URL` (example: `https://sortmyscene.fr/api/auth/spotify/callback`)
+- `DEEZER_APP_ID` (if using Deezer linking)
+- `DEEZER_APP_SECRET` (if using Deezer linking)
+- `DEEZER_CALLBACK_URL` (example: `https://sortmyscene.fr/api/auth/deezer/callback`)
 - `NODE_ENV=production`
 
 ### 2) Hostinger commands

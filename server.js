@@ -30,14 +30,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/scenes', scenesRoutes);
 app.use('/api/tokens', tokensRoutes);
 
-// Serve frontend from the first available build folder.
-const frontendCandidates = [
-  path.join(__dirname, 'web', 'dist'),
-  path.join(__dirname, 'public'),
-];
-const frontendRoot = frontendCandidates.find((dirPath) => fs.existsSync(path.join(dirPath, 'index.html')));
+// Serve frontend from React production build.
+const frontendRoot = path.join(__dirname, 'web', 'dist');
+const frontendReady = fs.existsSync(path.join(frontendRoot, 'index.html'));
 
-if (frontendRoot) {
+if (frontendReady) {
   app.use(express.static(frontendRoot));
 }
 
@@ -46,8 +43,8 @@ app.get('*', (req, res, next) => {
     return next();
   }
 
-  if (!frontendRoot) {
-    return res.status(500).send('Frontend build not found. Expected index.html in web/dist or public.');
+  if (!frontendReady) {
+    return res.status(500).send('Frontend build not found. Expected index.html in web/dist. Run npm run build:web.');
   }
 
   return res.sendFile(path.join(frontendRoot, 'index.html'));
