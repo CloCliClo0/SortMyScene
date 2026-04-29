@@ -1,44 +1,46 @@
 require('dotenv').config();
 
 const express = require('express');
-const session = require('express-session');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 
-const authRouter = require('./routes/auth');
-const playlistsRouter = require('./routes/playlists');
+const authRoutes = require('./routes/auth');
+const scenesRoutes = require('./routes/scenes');
+const tokensRoutes = require('./routes/tokens');
+const { passport } = require('./controllers/authController');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ── Middleware ────────────────────────────────────────────────────────────────
-
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+app.use(cookieParser());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(passport.initialize());
 
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || 'sortmyscene-dev-secret',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      // Restrict cookies to same-site requests (CSRF mitigation)
-      sameSite: 'strict',
-      // Require HTTPS in production
-      secure: process.env.NODE_ENV === 'production',
-    },
-  })
-);
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
 
-// Serve static files from /public
-app.use(express.static(path.join(__dirname, 'public')));
+app.use('/api/auth', authRoutes);
+app.use('/api/scenes', scenesRoutes);
+app.use('/api/tokens', tokensRoutes);
 
-// ── Routes ────────────────────────────────────────────────────────────────────
+// Serve React build in production hosting environments (e.g. Hostinger Node.js).
+const webDistPath = path.join(__dirname, 'web', 'dist');
+app.use(express.static(webDistPath));
 
-app.use('/auth', authRouter);
-app.use('/api', playlistsRouter);
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
 
-// ── Start ─────────────────────────────────────────────────────────────────────
+  return res.sendFile(path.join(webDistPath, 'index.html'));
+});
 
 app.listen(PORT, () => {
-  console.log(`SortMyScene server running at http://localhost:${PORT}`);
+  console.log(`SortMyScene listening on http://localhost:${PORT}`);
 });
