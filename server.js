@@ -10,6 +10,8 @@ const authRoutes = require('./routes/auth');
 const scenesRoutes = require('./routes/scenes');
 const tokensRoutes = require('./routes/tokens');
 const { passport } = require('./controllers/authController');
+const prisma = require('./lib/prisma');
+const { withDbTimeout } = require('./lib/dbGuard');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,6 +26,15 @@ app.use(passport.initialize());
 
 app.all('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+app.all('/api/health/db', async (_req, res) => {
+  try {
+    await withDbTimeout(prisma.$queryRaw`SELECT 1`, 'health db ping');
+    return res.json({ status: 'ok', database: 'up' });
+  } catch (error) {
+    return res.status(503).json({ status: 'degraded', database: 'down', error: error.message, code: error.code || 'UNKNOWN' });
+  }
 });
 
 app.use('/api/auth', authRoutes);
@@ -48,6 +59,15 @@ app.get('*', (req, res, next) => {
   }
 
   return res.sendFile(path.join(frontendRoot, 'index.html'));
+});
+
+app.use('/api', (_req, res) => {
+  return res.status(404).json({ message: 'API route not found' });
+});
+
+app.use((err, _req, res, _next) => {
+  console.error('Unhandled error:', err);
+  return res.status(500).json({ message: 'Internal server error' });
 });
 
 app.listen(PORT, () => {

@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const { withDbTimeout, sendDbError } = require('../lib/dbGuard');
 
 async function getTokenByProvider(req, res) {
   try {
@@ -10,18 +11,18 @@ async function getTokenByProvider(req, res) {
 
     const userId = Number(req.user.id);
 
-    const token = await prisma.oAuthToken.findUnique({
+    const token = await withDbTimeout(prisma.oAuthToken.findUnique({
       where: {
         user_id_provider: {
           user_id: userId,
           provider,
         },
       },
-    });
+    }), 'get provider token');
 
     return res.json(token || null);
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to retrieve token', error: error.message });
+    return sendDbError(res, error, 'Failed to retrieve token');
   }
 }
 

@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
+const { withDbTimeout, sendDbError } = require('../lib/dbGuard');
 
 const TOKEN_COOKIE = 'auth_token';
 const OAUTH_STATE_TTL = '10m';
@@ -60,7 +61,7 @@ function verifyOAuthState(stateToken, expectedProvider) {
 }
 
 async function saveOAuthToken({ userId, provider, accessToken, refreshToken, expiresIn }) {
-  await prisma.oAuthToken.upsert({
+  await withDbTimeout(prisma.oAuthToken.upsert({
     where: {
       user_id_provider: {
         user_id: userId,
@@ -79,49 +80,57 @@ async function saveOAuthToken({ userId, provider, accessToken, refreshToken, exp
       refresh_token: refreshToken || null,
       expires_in: Number.isFinite(Number(expiresIn)) ? Number(expiresIn) : null,
     },
-  });
+  }), 'oauth token upsert');
 }
 
 async function register(req, res) {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = String(email || '').trim().toLowerCase();
 
-    if (!email || !password || password.length < 6) {
+    if (!normalizedEmail || !password || password.length < 6) {
       return res.status(400).json({ message: 'Email and password (min 6 chars) are required' });
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await withDbTimeout(
+      prisma.user.findUnique({ where: { email: normalizedEmail } }),
+      'register find user'
+    );
     if (existing) {
       return res.status(409).json({ message: 'Email already used' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await prisma.user.create({
+    const user = await withDbTimeout(prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         password_hash: hashedPassword,
       },
-    });
+    }), 'register create user');
 
     const token = signToken(user);
     setAuthCookie(res, token);
 
     return res.status(201).json({ user: { id: user.id, email: user.email } });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to register', error: error.message });
+    return sendDbError(res, error, 'Failed to register');
   }
 }
 
 async function login(req, res) {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = String(email || '').trim().toLowerCase();
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await withDbTimeout(
+      prisma.user.findUnique({ where: { email: normalizedEmail } }),
+      'login find user'
+    );
 
     if (!user || !user.password_hash) {
       return res.status(401).json({ message: 'Invalid credentials' });
@@ -137,7 +146,7 @@ async function login(req, res) {
 
     return res.json({ user: { id: user.id, email: user.email } });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to login', error: error.message });
+    return sendDbError(res, error, 'Failed to login');
   }
 }
 
@@ -152,10 +161,10 @@ function logout(_req, res) {
 
 async function me(req, res) {
   try {
-    const user = await prisma.user.findUnique({
+    const user = await withDbTimeout(prisma.user.findUnique({
       where: { id: Number(req.user.id) },
       select: { id: true, email: true },
-    });
+    }), 'get profile');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -163,7 +172,7 @@ async function me(req, res) {
 
     return res.json({ user });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to get profile', error: error.message });
+    return sendDbError(res, error, 'Failed to get profile');
   }
 }
 
@@ -182,9 +191,15 @@ passport.use(
         const email = profile.emails?.[0]?.value;
         if (!email) return done(new Error('No email from Google'));
 
-        let user = await prisma.user.findUnique({ where: { email } });
+        let user = await withDbTimeout(
+          prisma.user.findUnique({ where: { email: String(email).toLowerCase() } }),
+          'google find user'
+        );
         if (!user) {
-          user = await prisma.user.create({ data: { email } });
+          user = await withDbTimeout(
+            prisma.user.create({ data: { email: String(email).toLowerCase() } }),
+            'google create user'
+          );
         }
         return done(null, user);
       } catch (err) {
@@ -205,6 +220,16 @@ function googleCallback(req, res) {
     const appOrigin = getAppOrigin();
     return res.redirect(`${appOrigin}/login?error=google_failed`);
   }
+}
+
+function getProvidersStatus(_req, res) {
+  const spotifyEnabled = Boolean(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET);
+  const deezerEnabled = Boolean(process.env.DEEZER_APP_ID && process.env.DEEZER_APP_SECRET);
+
+  return res.json({
+    spotify: { enabled: spotifyEnabled },
+    deezer: { enabled: deezerEnabled },
+  });
 }
 
 function connectSpotify(req, res) {
@@ -360,6 +385,7 @@ module.exports = {
   login,
   logout,
   me,
+  getProvidersStatus,
   passport,
   googleCallback,
   connectSpotify,

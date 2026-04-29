@@ -4,6 +4,7 @@ const {
   login,
   logout,
   me,
+  getProvidersStatus,
   passport,
   googleCallback,
   connectSpotify,
@@ -19,6 +20,7 @@ router.post('/register', register);
 router.post('/login', login);
 router.post('/logout', logout);
 router.get('/me', requireAuth, me);
+router.get('/providers', getProvidersStatus);
 
 // Google OAuth2
 router.get('/google', passport.authenticate('google', { scope: ['email', 'profile'], session: false }));
@@ -30,10 +32,12 @@ router.get(
 
 // Spotify OAuth2 (account linking)
 router.get('/spotify', requireAuth, connectSpotify);
+router.get('/spotify/connect', requireAuth, connectSpotify);
 router.get('/spotify/callback', spotifyCallback);
 
 // Deezer OAuth2 (account linking)
 router.get('/deezer', requireAuth, connectDeezer);
+router.get('/deezer/connect', requireAuth, connectDeezer);
 router.get('/deezer/callback', deezerCallback);
 
 module.exports = router;

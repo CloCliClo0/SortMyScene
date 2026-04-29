@@ -9,6 +9,8 @@ This project is ready for Hostinger Node.js hosting with Express as API manager.
 - `PORT` (provided by host in many cases)
 - `DATABASE_URL` (Hostinger MySQL):
 	- `mysql://DB_USER:DB_PASSWORD@DB_HOST:3306/DB_NAME`
+	- if password contains special chars (`@`, `:`, `/`, `%`), URL-encode it
+- `DB_TIMEOUT_MS` (optional, default `8000`)
 - `JWT_SECRET` (long random secret)
 - `APP_ORIGIN` (example: `https://sortmyscene.fr`)
 - `GOOGLE_CLIENT_ID` (if using Google auth)
@@ -43,7 +45,13 @@ npx prisma migrate deploy
 
 If this is a brand new production database, run migrations from your project root after setting `DATABASE_URL`.
 
+If you do not use Prisma migrations, you can import `sql/sortmyscene_schema_template.sql` in phpMyAdmin. The imported schema must include `User.password_hash` for email/password login to work.
+
 ### 4) Runtime behavior
 
 - API routes remain under `/api/*`
 - Frontend React app is served by Express from `web/dist`
+- OAuth link routes: `/api/auth/spotify` (and `/api/auth/spotify/connect`), `/api/auth/deezer` (and `/api/auth/deezer/connect`)
+- Health endpoints:
+	- `/api/health` (app up)
+	- `/api/health/db` (DB connectivity check)

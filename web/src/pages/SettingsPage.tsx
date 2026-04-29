@@ -63,24 +63,16 @@ function SettingsPage() {
               <span className="rounded-full border border-emerald-300/50 px-4 py-1 text-xs text-emerald-200">{t('settings.connected')}</span>
             ) : (
               <a href="/api/auth/spotify" className="rounded-full border border-cyan-300/50 px-4 py-1 text-xs text-cyan-200 hover:bg-cyan-500/10">
-                {t('settings.connect')}
+                {t('settings.connectSpotify')}
               </a>
             )}
           </div>
           <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-4">
             <div>
               <p className="font-semibold text-white">Deezer</p>
-              <p className="text-sm text-slate-400">
-                {deezerStatus === 'connected' ? t('settings.statusConnected') : t('settings.statusNotConnected')}
-              </p>
+              <p className="text-sm text-slate-400">{t('settings.comingSoon')}</p>
             </div>
-            {deezerStatus === 'connected' ? (
-              <span className="rounded-full border border-emerald-300/50 px-4 py-1 text-xs text-emerald-200">{t('settings.connected')}</span>
-            ) : (
-              <a href="/api/auth/deezer" className="rounded-full border border-cyan-300/50 px-4 py-1 text-xs text-cyan-200 hover:bg-cyan-500/10">
-                {t('settings.connect')}
-              </a>
-            )}
+            <span className="rounded-full border border-white/15 px-4 py-1 text-xs text-slate-300">{t('settings.comingSoon')}</span>
           </div>
           <p className="text-sm text-slate-400">{t('settings.linkService')}</p>
         </div>

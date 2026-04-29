@@ -1,18 +1,19 @@
 const prisma = require('../lib/prisma');
+const { withDbTimeout, sendDbError } = require('../lib/dbGuard');
 
 async function getScenes(req, res) {
   try {
     const userId = Number(req.user.id);
 
-    const scenes = await prisma.scene.findMany({
+    const scenes = await withDbTimeout(prisma.scene.findMany({
       where: { user_id: userId },
       include: { tracks: true },
       orderBy: { created_at: 'desc' },
-    });
+    }), 'get scenes');
 
     res.json(scenes);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to load scenes', error: error.message });
+    return sendDbError(res, error, 'Failed to load scenes');
   }
 }
 
@@ -25,7 +26,7 @@ async function createScene(req, res) {
       return res.status(400).json({ message: 'name and description are required' });
     }
 
-    const scene = await prisma.scene.create({
+    const scene = await withDbTimeout(prisma.scene.create({
       data: {
         user_id: userId,
         name,
@@ -42,11 +43,11 @@ async function createScene(req, res) {
         },
       },
       include: { tracks: true },
-    });
+    }), 'create scene');
 
     return res.status(201).json(scene);
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to create scene', error: error.message });
+    return sendDbError(res, error, 'Failed to create scene');
   }
 }
 
