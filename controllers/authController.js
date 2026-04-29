@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const prisma = require('../lib/prisma');
+const { QueryTypes } = require('sequelize');
+const sequelize = require('../lib/sequelize');
 const { withDbTimeout, sendDbError } = require('../lib/dbGuard');
 
 const TOKEN_COOKIE = 'auth_token';
@@ -61,26 +62,26 @@ function verifyOAuthState(stateToken, expectedProvider) {
 }
 
 async function saveOAuthToken({ userId, provider, accessToken, refreshToken, expiresIn }) {
-  await withDbTimeout(prisma.oAuthToken.upsert({
-    where: {
-      user_id_provider: {
-        user_id: userId,
-        provider,
-      },
-    },
-    update: {
-      access_token: accessToken,
-      refresh_token: refreshToken || null,
-      expires_in: Number.isFinite(Number(expiresIn)) ? Number(expiresIn) : null,
-    },
-    create: {
-      user_id: userId,
-      provider,
-      access_token: accessToken,
-      refresh_token: refreshToken || null,
-      expires_in: Number.isFinite(Number(expiresIn)) ? Number(expiresIn) : null,
-    },
-  }), 'oauth token upsert');
+  await withDbTimeout(
+    sequelize.query(
+      `INSERT INTO \`OAuthToken\` (user_id, provider, access_token, refresh_token, expires_in)
+       VALUES (:userId, :provider, :accessToken, :refreshToken, :expiresIn)
+       ON DUPLICATE KEY UPDATE
+         access_token = VALUES(access_token),
+         refresh_token = VALUES(refresh_token),
+         expires_in = VALUES(expires_in)`,
+      {
+        replacements: {
+          userId,
+          provider,
+          accessToken,
+          refreshToken: refreshToken || null,
+          expiresIn: Number.isFinite(Number(expiresIn)) ? Number(expiresIn) : null,
+        },
+      }
+    ),
+    'oauth token upsert'
+  );
 }
 
 async function register(req, res) {
@@ -93,21 +94,35 @@ async function register(req, res) {
     }
 
     const existing = await withDbTimeout(
-      prisma.user.findUnique({ where: { email: normalizedEmail } }),
+      sequelize.query(
+        'SELECT id FROM `User` WHERE email = :email LIMIT 1',
+        {
+          replacements: { email: normalizedEmail },
+          type: QueryTypes.SELECT,
+        }
+      ),
       'register find user'
     );
-    if (existing) {
+    if (existing.length > 0) {
       return res.status(409).json({ message: 'Email already used' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await withDbTimeout(prisma.user.create({
-      data: {
+    const user = await withDbTimeout(
+      sequelize.query(
+        `INSERT INTO \`User\` (email, password_hash)
+         VALUES (:email, :passwordHash)`,
+        {
+          replacements: { email: normalizedEmail, passwordHash: hashedPassword },
+        }
+      ).then(([result]) => ({
+        id: result.insertId,
         email: normalizedEmail,
-        password_hash: hashedPassword,
-      },
-    }), 'register create user');
+        is_admin: false,
+      })),
+      'register create user'
+    );
 
     const token = signToken(user);
     setAuthCookie(res, token);
@@ -127,10 +142,18 @@ async function login(req, res) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const user = await withDbTimeout(
-      prisma.user.findUnique({ where: { email: normalizedEmail } }),
+    const rows = await withDbTimeout(
+      sequelize.query(
+        'SELECT id, email, password_hash, is_admin FROM `User` WHERE email = :email LIMIT 1',
+        {
+          replacements: { email: normalizedEmail },
+          type: QueryTypes.SELECT,
+        }
+      ),
       'login find user'
     );
+
+    const user = rows[0] || null;
 
     if (!user || !user.password_hash) {
       return res.status(401).json({ message: 'Invalid credentials' });
@@ -161,10 +184,18 @@ function logout(_req, res) {
 
 async function me(req, res) {
   try {
-    const user = await withDbTimeout(prisma.user.findUnique({
-      where: { id: Number(req.user.id) },
-      select: { id: true, email: true, is_admin: true },
-    }), 'get profile');
+    const rows = await withDbTimeout(
+      sequelize.query(
+        'SELECT id, email, is_admin FROM `User` WHERE id = :id LIMIT 1',
+        {
+          replacements: { id: Number(req.user.id) },
+          type: QueryTypes.SELECT,
+        }
+      ),
+      'get profile'
+    );
+
+    const user = rows[0] || null;
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -191,13 +222,31 @@ passport.use(
         const email = profile.emails?.[0]?.value;
         if (!email) return done(new Error('No email from Google'));
 
-        let user = await withDbTimeout(
-          prisma.user.findUnique({ where: { email: String(email).toLowerCase() } }),
+        const normalizedEmail = String(email).toLowerCase();
+        const rows = await withDbTimeout(
+          sequelize.query(
+            'SELECT id, email, is_admin FROM `User` WHERE email = :email LIMIT 1',
+            {
+              replacements: { email: normalizedEmail },
+              type: QueryTypes.SELECT,
+            }
+          ),
           'google find user'
         );
+
+        let user = rows[0] || null;
         if (!user) {
           user = await withDbTimeout(
-            prisma.user.create({ data: { email: String(email).toLowerCase() } }),
+            sequelize.query(
+              'INSERT INTO `User` (email) VALUES (:email)',
+              {
+                replacements: { email: normalizedEmail },
+              }
+            ).then(([result]) => ({
+              id: result.insertId,
+              email: normalizedEmail,
+              is_admin: false,
+            })),
             'google create user'
           );
         }

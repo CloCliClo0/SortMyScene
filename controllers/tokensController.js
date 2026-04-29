@@ -1,4 +1,5 @@
-const prisma = require('../lib/prisma');
+const { QueryTypes } = require('sequelize');
+const sequelize = require('../lib/sequelize');
 const { withDbTimeout, sendDbError } = require('../lib/dbGuard');
 
 async function getTokenByProvider(req, res) {
@@ -11,14 +12,21 @@ async function getTokenByProvider(req, res) {
 
     const userId = Number(req.user.id);
 
-    const token = await withDbTimeout(prisma.oAuthToken.findUnique({
-      where: {
-        user_id_provider: {
-          user_id: userId,
-          provider,
-        },
-      },
-    }), 'get provider token');
+    const rows = await withDbTimeout(
+      sequelize.query(
+        `SELECT id, user_id, provider, access_token, refresh_token, expires_in
+         FROM \`OAuthToken\`
+         WHERE user_id = :userId AND provider = :provider
+         LIMIT 1`,
+        {
+          replacements: { userId, provider },
+          type: QueryTypes.SELECT,
+        }
+      ),
+      'get provider token'
+    );
+
+    const token = rows[0] || null;
 
     return res.json(token || null);
   } catch (error) {

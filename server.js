@@ -10,7 +10,7 @@ const authRoutes = require('./routes/auth');
 const scenesRoutes = require('./routes/scenes');
 const tokensRoutes = require('./routes/tokens');
 const { passport } = require('./controllers/authController');
-const prisma = require('./lib/prisma');
+const sequelize = require('./lib/sequelize');
 const { withDbTimeout } = require('./lib/dbGuard');
 
 const app = express();
@@ -33,7 +33,7 @@ app.all('/api/health/db', async (_req, res) => {
     return res.status(503).json({ status: 'degraded', database: 'down', error: 'DATABASE_URL not configured', code: 'NO_DATABASE_URL' });
   }
   try {
-    await withDbTimeout(prisma.$queryRaw`SELECT 1`, 'health db ping');
+    await withDbTimeout(sequelize.query('SELECT 1'), 'health db ping');
     return res.json({ status: 'ok', database: 'up' });
   } catch (error) {
     return res.status(503).json({ status: 'degraded', database: 'down', error: error.message, code: error.code || 'UNKNOWN' });

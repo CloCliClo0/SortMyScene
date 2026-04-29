@@ -1,61 +1,49 @@
 # SortMyScene
 
-## Deployment (Hostinger Node.js + Express)
+SortMyScene is a web app that helps you design musical moods, save your scene ideas, and connect your favorite music platforms to build richer selections.
 
-This project is ready for Hostinger Node.js hosting with Express as API manager.
+## What the app does
 
-### 1) Required environment variables
+- Create personalized scenes with a name, a mood description, and seed tracks.
+- Organize and keep your own scene library over time.
+- Connect Spotify and YouTube accounts to prepare music-based workflows.
+- Manage your account with secure authentication (email/password and Google sign-in).
 
-- `PORT` (provided by host in many cases)
-- `DATABASE_URL` (Hostinger MySQL):
-	- `mysql://DB_USER:DB_PASSWORD@DB_HOST:3306/DB_NAME`
-	- if password contains special chars (`@`, `:`, `/`, `%`), URL-encode it
-- `DB_TIMEOUT_MS` (optional, default `8000`)
-- `JWT_SECRET` (long random secret)
-- `APP_ORIGIN` (example: `https://sortmyscene.fr`)
-- `GOOGLE_CLIENT_ID` (if using Google auth)
-- `GOOGLE_CLIENT_SECRET` (if using Google auth)
-- `GOOGLE_CALLBACK_URL` (example: `https://sortmyscene.fr/api/auth/google/callback`)
-- `SPOTIFY_CLIENT_ID` (if using Spotify linking)
-- `SPOTIFY_CLIENT_SECRET` (if using Spotify linking)
-- `SPOTIFY_CALLBACK_URL` (example: `https://sortmyscene.fr/api/auth/spotify/callback`)
-- `YOUTUBE_CLIENT_ID` (optional, can reuse Google client ID if YouTube Data API is enabled)
-- `YOUTUBE_CLIENT_SECRET` (optional, can reuse Google client secret)
-- `YOUTUBE_CALLBACK_URL` (example: `https://sortmyscene.fr/api/auth/youtube/callback`)
-- `DEEZER_APP_ID` (if using Deezer linking)
-- `DEEZER_APP_SECRET` (if using Deezer linking)
-- `DEEZER_CALLBACK_URL` (example: `https://sortmyscene.fr/api/auth/deezer/callback`)
-- `NODE_ENV=production`
+## Core experience
 
-### 2) Hostinger commands
+1. Sign up or log in.
+2. Create a scene and describe the vibe you want.
+3. Add reference tracks to shape the direction.
+4. Review your saved scenes and iterate on them.
+5. Link music providers from settings when needed.
 
-- Install command:
-	- `npm install`
-- Build command:
-	- `npm run build`
-- Start command:
-	- `npm run start`
+## Main features
 
-Important: keep `web/package.json` free of local file dependencies such as `"sortmyscene": "file:.."`, otherwise ZIP installs can recurse during deployment.
+- Scene management: create and browse your scenes.
+- Track model: store platform id, title, artist, artwork, and metadata.
+- OAuth connections: Google, Spotify, and YouTube integration.
+- Protected routes and JWT cookie authentication.
+- Bilingual interface (FR/EN).
 
-### 3) Prisma setup (first deploy)
+## Tech stack
 
-Run once in terminal:
+- Frontend: React + Vite + TypeScript
+- Backend: Node.js + Express
+- Database: MySQL (Sequelize)
+- Auth: JWT + Passport Google OAuth
+
+## For contributors
+
+Quick local run:
 
 ```bash
-npx prisma migrate deploy
+npm install
+npm run dev
 ```
 
-If this is a brand new production database, run migrations from your project root after setting `DATABASE_URL`.
+Build production assets:
 
-If you do not use Prisma migrations, you can import `sql/sortmyscene_schema_template.sql` in phpMyAdmin. The imported schema must include `User.password_hash` for email/password login to work.
-
-### 4) Runtime behavior
-
-- API routes remain under `/api/*`
-- Frontend React app is served by Express from `web/dist`
-- OAuth link routes: `/api/auth/spotify` (and `/api/auth/spotify/connect`), `/api/auth/deezer` (and `/api/auth/deezer/connect`)
-- OAuth link routes: `/api/auth/youtube` (and `/api/auth/youtube/connect`) for YouTube Music import via Google OAuth
-- Health endpoints:
-	- `/api/health` (app up)
-	- `/api/health/db` (DB connectivity check)
+```bash
+npm run build
+npm run start
+```

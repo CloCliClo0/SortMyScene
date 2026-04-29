@@ -1,15 +1,55 @@
-const prisma = require('../lib/prisma');
+const { QueryTypes } = require('sequelize');
+const sequelize = require('../lib/sequelize');
 const { withDbTimeout, sendDbError } = require('../lib/dbGuard');
 
 async function getScenes(req, res) {
   try {
     const userId = Number(req.user.id);
 
-    const scenes = await withDbTimeout(prisma.scene.findMany({
-      where: { user_id: userId },
-      include: { tracks: true },
-      orderBy: { created_at: 'desc' },
-    }), 'get scenes');
+    const sceneRows = await withDbTimeout(
+      sequelize.query(
+        `SELECT id, user_id, name, description, seed_tracks, created_at
+         FROM \`Scene\`
+         WHERE user_id = :userId
+         ORDER BY created_at DESC`,
+        {
+          replacements: { userId },
+          type: QueryTypes.SELECT,
+        }
+      ),
+      'get scenes'
+    );
+
+    if (sceneRows.length === 0) {
+      return res.json([]);
+    }
+
+    const sceneIds = sceneRows.map((scene) => scene.id);
+    const trackRows = await withDbTimeout(
+      sequelize.query(
+        `SELECT id, scene_id, platform_id, title, artist, album_art, metadata
+         FROM \`Track\`
+         WHERE scene_id IN (:sceneIds)
+         ORDER BY id ASC`,
+        {
+          replacements: { sceneIds },
+          type: QueryTypes.SELECT,
+        }
+      ),
+      'get scene tracks'
+    );
+
+    const tracksByScene = new Map();
+    for (const track of trackRows) {
+      const list = tracksByScene.get(track.scene_id) || [];
+      list.push(track);
+      tracksByScene.set(track.scene_id, list);
+    }
+
+    const scenes = sceneRows.map((scene) => ({
+      ...scene,
+      tracks: tracksByScene.get(scene.id) || [],
+    }));
 
     res.json(scenes);
   } catch (error) {
@@ -26,24 +66,73 @@ async function createScene(req, res) {
       return res.status(400).json({ message: 'name and description are required' });
     }
 
-    const scene = await withDbTimeout(prisma.scene.create({
-      data: {
-        user_id: userId,
-        name,
-        description,
-        seed_tracks,
-        tracks: {
-          create: tracks.map((track) => ({
-            platform_id: String(track.platform_id || ''),
-            title: track.title || 'Untitled',
-            artist: track.artist || 'Unknown Artist',
-            album_art: track.album_art || null,
-            metadata: track.metadata || null,
-          })),
-        },
-      },
-      include: { tracks: true },
-    }), 'create scene');
+    const scene = await withDbTimeout(
+      sequelize.transaction(async (transaction) => {
+        const [insertResult] = await sequelize.query(
+          `INSERT INTO \`Scene\` (user_id, name, description, seed_tracks)
+           VALUES (:userId, :name, :description, :seedTracks)`,
+          {
+            replacements: {
+              userId,
+              name,
+              description,
+              seedTracks: JSON.stringify(seed_tracks || []),
+            },
+            transaction,
+          }
+        );
+
+        const sceneId = insertResult.insertId;
+
+        if (Array.isArray(tracks) && tracks.length > 0) {
+          for (const track of tracks) {
+            await sequelize.query(
+              `INSERT INTO \`Track\` (scene_id, platform_id, title, artist, album_art, metadata)
+               VALUES (:sceneId, :platformId, :title, :artist, :albumArt, :metadata)`,
+              {
+                replacements: {
+                  sceneId,
+                  platformId: String(track.platform_id || ''),
+                  title: track.title || 'Untitled',
+                  artist: track.artist || 'Unknown Artist',
+                  albumArt: track.album_art || null,
+                  metadata: track.metadata ? JSON.stringify(track.metadata) : null,
+                },
+                transaction,
+              }
+            );
+          }
+        }
+
+        const [sceneRows] = await sequelize.query(
+          `SELECT id, user_id, name, description, seed_tracks, created_at
+           FROM \`Scene\`
+           WHERE id = :sceneId
+           LIMIT 1`,
+          {
+            replacements: { sceneId },
+            transaction,
+          }
+        );
+
+        const [trackRows] = await sequelize.query(
+          `SELECT id, scene_id, platform_id, title, artist, album_art, metadata
+           FROM \`Track\`
+           WHERE scene_id = :sceneId
+           ORDER BY id ASC`,
+          {
+            replacements: { sceneId },
+            transaction,
+          }
+        );
+
+        return {
+          ...sceneRows[0],
+          tracks: trackRows,
+        };
+      }),
+      'create scene'
+    );
 
     return res.status(201).json(scene);
   } catch (error) {

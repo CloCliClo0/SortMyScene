@@ -1,7 +1,8 @@
 require('dotenv').config();
 
 const bcrypt = require('bcryptjs');
-const prisma = require('../lib/prisma');
+const { QueryTypes } = require('sequelize');
+const sequelize = require('../lib/sequelize');
 
 function getEnvValue(name) {
   const value = process.env[name];
@@ -21,24 +22,42 @@ async function main() {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+  const normalizedEmail = email.toLowerCase();
 
-  const user = await prisma.user.upsert({
-    where: { email: email.toLowerCase() },
-    update: {
-      password_hash: passwordHash,
-      is_admin: true,
-    },
-    create: {
-      email: email.toLowerCase(),
-      password_hash: passwordHash,
-      is_admin: true,
-    },
-    select: {
-      id: true,
-      email: true,
-      is_admin: true,
-    },
-  });
+  const existing = await sequelize.query(
+    'SELECT id FROM `User` WHERE email = :email LIMIT 1',
+    {
+      replacements: { email: normalizedEmail },
+      type: QueryTypes.SELECT,
+    }
+  );
+
+  if (existing.length > 0) {
+    await sequelize.query(
+      `UPDATE \`User\`
+       SET password_hash = :passwordHash, is_admin = 1
+       WHERE email = :email`,
+      {
+        replacements: { email: normalizedEmail, passwordHash },
+      }
+    );
+  } else {
+    await sequelize.query(
+      `INSERT INTO \`User\` (email, password_hash, is_admin)
+       VALUES (:email, :passwordHash, 1)`,
+      {
+        replacements: { email: normalizedEmail, passwordHash },
+      }
+    );
+  }
+
+  const [user] = await sequelize.query(
+    'SELECT id, email, is_admin FROM `User` WHERE email = :email LIMIT 1',
+    {
+      replacements: { email: normalizedEmail },
+      type: QueryTypes.SELECT,
+    }
+  );
 
   console.log('Admin user ready:', user);
 }
@@ -49,5 +68,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    await sequelize.close();
   });
