@@ -11,6 +11,7 @@ function SettingsPage() {
   const [reduceMotion, setReduceMotion] = useState(false);
   const [deezerStatus, setDeezerStatus] = useState<ProviderStatus>('loading');
   const [spotifyStatus, setSpotifyStatus] = useState<ProviderStatus>('loading');
+  const [youtubeStatus, setYouTubeStatus] = useState<ProviderStatus>('loading');
   const [providerMessage, setProviderMessage] = useState('');
 
   useEffect(() => {
@@ -19,6 +20,10 @@ function SettingsPage() {
       setProviderMessage(t('settings.spotifyConnected'));
     } else if (params.get('spotifyAuth') === 'error') {
       setProviderMessage(t('settings.spotifyError'));
+    } else if (params.get('youtubeAuth') === 'success') {
+      setProviderMessage(t('settings.youtubeConnected'));
+    } else if (params.get('youtubeAuth') === 'error') {
+      setProviderMessage(t('settings.youtubeError'));
     } else if (params.get('deezerAuth') === 'success') {
       setProviderMessage(t('settings.deezerConnected'));
     } else if (params.get('deezerAuth') === 'error') {
@@ -28,16 +33,20 @@ function SettingsPage() {
     Promise.all([
       fetch('/api/tokens/deezer', { credentials: 'include' }),
       fetch('/api/tokens/spotify', { credentials: 'include' }),
+      fetch('/api/tokens/youtube', { credentials: 'include' }),
     ])
-      .then(async ([deezerRes, spotifyRes]) => {
+      .then(async ([deezerRes, spotifyRes, youtubeRes]) => {
         const deezerPayload = deezerRes.ok ? await deezerRes.json() : null;
         const spotifyPayload = spotifyRes.ok ? await spotifyRes.json() : null;
+        const youtubePayload = youtubeRes.ok ? await youtubeRes.json() : null;
         setDeezerStatus(deezerPayload ? 'connected' : 'not_connected');
         setSpotifyStatus(spotifyPayload ? 'connected' : 'not_connected');
+        setYouTubeStatus(youtubePayload ? 'connected' : 'not_connected');
       })
       .catch(() => {
         setDeezerStatus('not_connected');
         setSpotifyStatus('not_connected');
+        setYouTubeStatus('not_connected');
       });
   }, [t]);
 
@@ -73,6 +82,21 @@ function SettingsPage() {
               <p className="text-sm text-slate-400">{t('settings.comingSoon')}</p>
             </div>
             <span className="rounded-full border border-white/15 px-4 py-1 text-xs text-slate-300">{t('settings.comingSoon')}</span>
+          </div>
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-4">
+            <div>
+              <p className="font-semibold text-white">YouTube Music</p>
+              <p className="text-sm text-slate-400">
+                {youtubeStatus === 'connected' ? t('settings.statusConnected') : t('settings.statusNotConnected')}
+              </p>
+            </div>
+            {youtubeStatus === 'connected' ? (
+              <span className="rounded-full border border-emerald-300/50 px-4 py-1 text-xs text-emerald-200">{t('settings.connected')}</span>
+            ) : (
+              <a href="/api/auth/youtube" className="rounded-full border border-cyan-300/50 px-4 py-1 text-xs text-cyan-200 hover:bg-cyan-500/10">
+                {t('settings.connectYouTube')}
+              </a>
+            )}
           </div>
           <p className="text-sm text-slate-400">{t('settings.linkService')}</p>
         </div>

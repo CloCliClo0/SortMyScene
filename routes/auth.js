@@ -9,6 +9,8 @@ const {
   googleCallback,
   connectSpotify,
   spotifyCallback,
+  connectYouTube,
+  youtubeCallback,
   connectDeezer,
   deezerCallback,
 } = require('../controllers/authController');
@@ -34,6 +36,11 @@ router.get(
 router.get('/spotify', requireAuth, connectSpotify);
 router.get('/spotify/connect', requireAuth, connectSpotify);
 router.get('/spotify/callback', spotifyCallback);
+
+// YouTube OAuth2 (account linking for YouTube Music sources)
+router.get('/youtube', requireAuth, connectYouTube);
+router.get('/youtube/connect', requireAuth, connectYouTube);
+router.get('/youtube/callback', youtubeCallback);
 
 // Deezer OAuth2 (account linking)
 router.get('/deezer', requireAuth, connectDeezer);

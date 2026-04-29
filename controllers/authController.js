@@ -225,11 +225,25 @@ function googleCallback(req, res) {
 function getProvidersStatus(_req, res) {
   const spotifyEnabled = Boolean(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET);
   const deezerEnabled = Boolean(process.env.DEEZER_APP_ID && process.env.DEEZER_APP_SECRET);
+  const youtubeEnabled = Boolean(
+    (process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID) &&
+      (process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET)
+  );
 
   return res.json({
     spotify: { enabled: spotifyEnabled },
     deezer: { enabled: deezerEnabled },
+    youtube: { enabled: youtubeEnabled },
   });
+}
+
+function getYouTubeClientConfig() {
+  return {
+    clientId: process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET,
+    callbackUrl:
+      process.env.YOUTUBE_CALLBACK_URL || `${getAppOrigin()}/api/auth/youtube/callback`,
+  };
 }
 
 function connectSpotify(req, res) {
@@ -257,6 +271,86 @@ function connectSpotify(req, res) {
   authUrl.searchParams.set('show_dialog', 'true');
 
   return res.redirect(authUrl.toString());
+}
+
+function connectYouTube(req, res) {
+  const { clientId, callbackUrl } = getYouTubeClientConfig();
+
+  if (!clientId) {
+    return res.status(500).json({ message: 'YOUTUBE_CLIENT_ID is not configured' });
+  }
+
+  const state = buildOAuthState(req.user.id, 'youtube');
+  const scope = [
+    'openid',
+    'email',
+    'profile',
+    'https://www.googleapis.com/auth/youtube.readonly',
+  ].join(' ');
+
+  const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  authUrl.searchParams.set('client_id', clientId);
+  authUrl.searchParams.set('redirect_uri', callbackUrl);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('scope', scope);
+  authUrl.searchParams.set('access_type', 'offline');
+  authUrl.searchParams.set('prompt', 'consent');
+  authUrl.searchParams.set('include_granted_scopes', 'true');
+  authUrl.searchParams.set('state', state);
+
+  return res.redirect(authUrl.toString());
+}
+
+async function youtubeCallback(req, res) {
+  const appOrigin = getAppOrigin();
+
+  try {
+    const code = req.query.code;
+    const state = req.query.state;
+
+    if (!code || !state) {
+      return res.redirect(`${appOrigin}/settings?youtubeAuth=error`);
+    }
+
+    const userId = verifyOAuthState(state, 'youtube');
+    const { clientId, clientSecret, callbackUrl } = getYouTubeClientConfig();
+
+    if (!clientId || !clientSecret) {
+      return res.redirect(`${appOrigin}/settings?youtubeAuth=error`);
+    }
+
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code: String(code),
+        grant_type: 'authorization_code',
+        redirect_uri: callbackUrl,
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error(`YouTube token exchange failed: ${tokenResponse.status}`);
+    }
+
+    const tokenData = await tokenResponse.json();
+
+    await saveOAuthToken({
+      userId,
+      provider: 'youtube',
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresIn: tokenData.expires_in,
+    });
+
+    return res.redirect(`${appOrigin}/settings?youtubeAuth=success`);
+  } catch (_error) {
+    return res.redirect(`${appOrigin}/settings?youtubeAuth=error`);
+  }
 }
 
 async function spotifyCallback(req, res) {
@@ -390,6 +484,8 @@ module.exports = {
   googleCallback,
   connectSpotify,
   spotifyCallback,
+  connectYouTube,
+  youtubeCallback,
   connectDeezer,
   deezerCallback,
 };

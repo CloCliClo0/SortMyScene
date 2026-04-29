@@ -5,8 +5,8 @@ async function getTokenByProvider(req, res) {
   try {
     const { provider } = req.params;
 
-    if (!['deezer', 'spotify'].includes(provider)) {
-      return res.status(400).json({ message: 'provider must be deezer or spotify' });
+    if (!['deezer', 'spotify', 'youtube'].includes(provider)) {
+      return res.status(400).json({ message: 'provider must be deezer, spotify or youtube' });
     }
 
     const userId = Number(req.user.id);

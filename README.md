@@ -19,6 +19,9 @@ This project is ready for Hostinger Node.js hosting with Express as API manager.
 - `SPOTIFY_CLIENT_ID` (if using Spotify linking)
 - `SPOTIFY_CLIENT_SECRET` (if using Spotify linking)
 - `SPOTIFY_CALLBACK_URL` (example: `https://sortmyscene.fr/api/auth/spotify/callback`)
+- `YOUTUBE_CLIENT_ID` (optional, can reuse Google client ID if YouTube Data API is enabled)
+- `YOUTUBE_CLIENT_SECRET` (optional, can reuse Google client secret)
+- `YOUTUBE_CALLBACK_URL` (example: `https://sortmyscene.fr/api/auth/youtube/callback`)
 - `DEEZER_APP_ID` (if using Deezer linking)
 - `DEEZER_APP_SECRET` (if using Deezer linking)
 - `DEEZER_CALLBACK_URL` (example: `https://sortmyscene.fr/api/auth/deezer/callback`)
@@ -52,6 +55,7 @@ If you do not use Prisma migrations, you can import `sql/sortmyscene_schema_temp
 - API routes remain under `/api/*`
 - Frontend React app is served by Express from `web/dist`
 - OAuth link routes: `/api/auth/spotify` (and `/api/auth/spotify/connect`), `/api/auth/deezer` (and `/api/auth/deezer/connect`)
+- OAuth link routes: `/api/auth/youtube` (and `/api/auth/youtube/connect`) for YouTube Music import via Google OAuth
 - Health endpoints:
 	- `/api/health` (app up)
 	- `/api/health/db` (DB connectivity check)

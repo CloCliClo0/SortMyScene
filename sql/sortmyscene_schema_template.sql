@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS `User` (
 CREATE TABLE IF NOT EXISTS `OAuthToken` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `user_id` INT NOT NULL,
-  `provider` ENUM('deezer', 'spotify') NOT NULL,
+  `provider` ENUM('deezer', 'spotify', 'youtube') NOT NULL,
   `access_token` TEXT NOT NULL,
   `refresh_token` TEXT NULL,
   `expires_in` INT NULL,
