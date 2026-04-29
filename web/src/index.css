@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #dce1fb;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(34, 211, 238, 0.16), transparent 28%),
+    radial-gradient(circle at 90% 85%, rgba(168, 85, 247, 0.16), transparent 30%),
+    #0c1324;
+}
+
+.card-panel {
+  @apply rounded-2xl border border-white/10 bg-slate-950/50 p-4 backdrop-blur-xl;
+}
+
+.text-display {
+  font-family: 'Space Grotesk', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.glass-chip {
+  @apply rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-wider text-slate-300;
+}
+
+.gradient-cta {
+  @apply rounded-2xl bg-gradient-to-r from-cyan-400 to-purple-500 text-slate-950;
+}

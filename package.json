@@ -1,0 +1,35 @@
+{
+  "name": "sortmyscene",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Full-stack app for AI-powered music scene curation",
+  "main": "server.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
+    "dev:server": "nodemon server.js",
+    "dev:web": "npm --prefix web run dev",
+    "build:web": "npm --prefix web install --ignore-scripts --include=dev --include=optional && npm --prefix web run build",
+    "build": "npm --prefix web install --ignore-scripts --include=dev --include=optional && npm run build:web && npm run prisma:generate",
+    "postinstall": "npm --prefix web install --ignore-scripts --include=dev --include=optional",
+    "start": "node server.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.7.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "nodemon": "^3.1.7",
+    "prisma": "^6.7.0"
+  }
+}
