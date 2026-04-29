@@ -29,6 +29,9 @@ app.all('/api/health', (_req, res) => {
 });
 
 app.all('/api/health/db', async (_req, res) => {
+  if (!process.env.DATABASE_URL) {
+    return res.status(503).json({ status: 'degraded', database: 'down', error: 'DATABASE_URL not configured', code: 'NO_DATABASE_URL' });
+  }
   try {
     await withDbTimeout(prisma.$queryRaw`SELECT 1`, 'health db ping');
     return res.json({ status: 'ok', database: 'up' });
