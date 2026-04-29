@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const fs = require('fs');
 
 const authRoutes = require('./routes/auth');
 const scenesRoutes = require('./routes/scenes');
@@ -29,16 +30,27 @@ app.use('/api/auth', authRoutes);
 app.use('/api/scenes', scenesRoutes);
 app.use('/api/tokens', tokensRoutes);
 
-// Serve React build in production hosting environments (e.g. Hostinger Node.js).
-const webDistPath = path.join(__dirname, 'web', 'dist');
-app.use(express.static(webDistPath));
+// Serve frontend from the first available build folder.
+const frontendCandidates = [
+  path.join(__dirname, 'web', 'dist'),
+  path.join(__dirname, 'public'),
+];
+const frontendRoot = frontendCandidates.find((dirPath) => fs.existsSync(path.join(dirPath, 'index.html')));
+
+if (frontendRoot) {
+  app.use(express.static(frontendRoot));
+}
 
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return next();
   }
 
-  return res.sendFile(path.join(webDistPath, 'index.html'));
+  if (!frontendRoot) {
+    return res.status(500).send('Frontend build not found. Expected index.html in web/dist or public.');
+  }
+
+  return res.sendFile(path.join(frontendRoot, 'index.html'));
 });
 
 app.listen(PORT, () => {
