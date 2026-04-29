@@ -21,7 +21,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(passport.initialize());
 
-app.get('/api/health', (_req, res) => {
+app.all('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
