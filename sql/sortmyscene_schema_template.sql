@@ -15,10 +15,15 @@ CREATE TABLE IF NOT EXISTS `User` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `email` VARCHAR(191) NOT NULL,
   `password_hash` VARCHAR(191) NULL,
+  `is_admin` BOOLEAN NOT NULL DEFAULT FALSE,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   UNIQUE KEY `User_email_key` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Existing production databases can be updated with:
+-- ALTER TABLE `User` ADD COLUMN `is_admin` BOOLEAN NOT NULL DEFAULT FALSE;
+-- ALTER TABLE `OAuthToken` MODIFY `provider` ENUM('deezer', 'spotify', 'youtube') NOT NULL;
 
 CREATE TABLE IF NOT EXISTS `OAuthToken` (
   `id` INT NOT NULL AUTO_INCREMENT,

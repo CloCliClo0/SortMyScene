@@ -8,7 +8,7 @@ const OAUTH_STATE_TTL = '10m';
 
 function signToken(user) {
   const secret = process.env.JWT_SECRET || 'dev-insecure-secret-change-me';
-  return jwt.sign({ email: user.email }, secret, {
+  return jwt.sign({ email: user.email, is_admin: Boolean(user.is_admin) }, secret, {
     subject: String(user.id),
     expiresIn: '7d',
   });
@@ -163,7 +163,7 @@ async function me(req, res) {
   try {
     const user = await withDbTimeout(prisma.user.findUnique({
       where: { id: Number(req.user.id) },
-      select: { id: true, email: true },
+      select: { id: true, email: true, is_admin: true },
     }), 'get profile');
 
     if (!user) {

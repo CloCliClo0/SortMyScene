@@ -14,7 +14,7 @@ function requireAuth(req, res, next) {
     }
 
     const payload = verifyToken(token);
-    req.user = { id: payload.sub, email: payload.email };
+    req.user = { id: payload.sub, email: payload.email, is_admin: Boolean(payload.is_admin) };
 
     return next();
   } catch {
