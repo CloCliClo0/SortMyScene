@@ -12,6 +12,7 @@
     "build": "npm --prefix web install --ignore-scripts --include=dev --include=optional && npm run build:web",
     "postinstall": "npm run build:web",
     "start": "node server.js",
+    "test:db": "node test-db.js",
     "create:admin": "node scripts/create-admin.js"
   },
   "dependencies": {
