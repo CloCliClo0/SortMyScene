@@ -5,6 +5,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const fs = require('fs');
+const { URL } = require('url');
 
 const authRoutes = require('./routes/auth');
 const scenesRoutes = require('./routes/scenes');
@@ -17,6 +18,23 @@ const { withDbTimeout } = require('./lib/dbGuard');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+function maskDatabaseUrl(databaseUrl) {
+  if (!databaseUrl) return 'undefined';
+  try {
+    const url = new URL(databaseUrl);
+    return `${url.protocol}//${url.username.replace(/./g, '*')}@${url.hostname}:${url.port || '<default>'}/${url.pathname.slice(1)}`;
+  } catch (error) {
+    return 'invalid DATABASE_URL';
+  }
+}
+
+function logStartupInfo() {
+  console.log('[server] Starting SortMyScene');
+  console.log('[server] NODE_ENV=', process.env.NODE_ENV || 'development');
+  console.log('[server] PORT=', PORT);
+  console.log('[server] DATABASE_URL=', maskDatabaseUrl(process.env.DATABASE_URL));
+}
 
 app.use(cors({
   origin: true,
@@ -56,6 +74,10 @@ if (frontendReady) {
   app.use(express.static(frontendRoot));
 }
 
+app.use('/api', (_req, res) => {
+  return res.status(404).json({ message: 'API route not found' });
+});
+
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return next();
@@ -68,15 +90,35 @@ app.get('*', (req, res, next) => {
   return res.sendFile(path.join(frontendRoot, 'index.html'));
 });
 
-app.use('/api', (_req, res) => {
-  return res.status(404).json({ message: 'API route not found' });
-});
-
 app.use((err, _req, res, _next) => {
   console.error('Unhandled error:', err);
   return res.status(500).json({ message: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`SortMyScene listening on http://localhost:${PORT}`);
+async function startServer() {
+  logStartupInfo();
+
+  if (process.env.DATABASE_URL) {
+    try {
+      await sequelize.authenticate();
+      console.log('[server] Database connected successfully');
+    } catch (error) {
+      console.error('[server] Database connection failed:', error.message);
+      console.error(error);
+    }
+  }
+
+  app.listen(PORT, () => {
+    console.log(`SortMyScene listening on http://localhost:${PORT}`);
+  });
+}
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] Unhandled Rejection:', reason);
 });
+
+process.on('uncaughtException', (error) => {
+  console.error('[server] Uncaught Exception:', error);
+});
+
+startServer();
