@@ -4,3 +4,5 @@ database.sqlite
 
 web/dist/
 web/node_modules/
+
+sql
