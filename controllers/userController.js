@@ -147,9 +147,36 @@ async function deleteUser(req, res) {
   }
 }
 
+async function logout(req, res) {
+  try {
+    res.clearCookie(TOKEN_COOKIE, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function getAllUsers(req, res) {
+  try {
+    const users = await User.findAll({
+      attributes: { exclude: ['password_hash'] },
+      order: [['createdAt', 'DESC']]
+    });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 module.exports = {
   register,
   login,
+  logout,
   getAllUsers,
   getUserById,
   getProfile,
