@@ -9,6 +9,8 @@ const fs = require('fs');
 const authRoutes = require('./routes/auth');
 const scenesRoutes = require('./routes/scenes');
 const tokensRoutes = require('./routes/tokens');
+const usersRoutes = require('./routes/users');
+const tracksRoutes = require('./routes/tracks');
 const { passport } = require('./controllers/authController');
 const sequelize = require('./lib/sequelize');
 const { withDbTimeout } = require('./lib/dbGuard');
@@ -41,7 +43,9 @@ app.all('/api/health/db', async (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes);
 app.use('/api/scenes', scenesRoutes);
+app.use('/api/tracks', tracksRoutes);
 app.use('/api/tokens', tokensRoutes);
 
 // Serve frontend from React production build.

@@ -1,146 +1,94 @@
-const { QueryTypes } = require('sequelize');
-const sequelize = require('../lib/sequelize');
-const { withDbTimeout, sendDbError } = require('../lib/dbGuard');
+const { Scene, User } = require('../models');
 
-async function getScenes(req, res) {
+// Get all scenes for current user
+async function getAllScenes(req, res) {
   try {
-    const userId = Number(req.user.id);
-
-    const sceneRows = await withDbTimeout(
-      sequelize.query(
-        `SELECT id, user_id, name, description, seed_tracks, created_at
-         FROM \`Scene\`
-         WHERE user_id = :userId
-         ORDER BY created_at DESC`,
-        {
-          replacements: { userId },
-          type: QueryTypes.SELECT,
-        }
-      ),
-      'get scenes'
-    );
-
-    if (sceneRows.length === 0) {
-      return res.json([]);
-    }
-
-    const sceneIds = sceneRows.map((scene) => scene.id);
-    const trackRows = await withDbTimeout(
-      sequelize.query(
-        `SELECT id, scene_id, platform_id, title, artist, album_art, metadata
-         FROM \`Track\`
-         WHERE scene_id IN (:sceneIds)
-         ORDER BY id ASC`,
-        {
-          replacements: { sceneIds },
-          type: QueryTypes.SELECT,
-        }
-      ),
-      'get scene tracks'
-    );
-
-    const tracksByScene = new Map();
-    for (const track of trackRows) {
-      const list = tracksByScene.get(track.scene_id) || [];
-      list.push(track);
-      tracksByScene.set(track.scene_id, list);
-    }
-
-    const scenes = sceneRows.map((scene) => ({
-      ...scene,
-      tracks: tracksByScene.get(scene.id) || [],
-    }));
-
+    const where = req.user.is_admin && req.query.userId ? { user_id: req.query.userId } : { user_id: req.user.id };
+    const scenes = await Scene.findAll({
+      where,
+      include: [{ model: User, as: 'user', attributes: ['id', 'email'] }],
+      order: [['created_at', 'DESC']],
+    });
     res.json(scenes);
   } catch (error) {
-    return sendDbError(res, error, 'Failed to load scenes');
+    res.status(500).json({ error: error.message });
   }
 }
 
-async function createScene(req, res) {
+// Get scene by ID
+async function getSceneById(req, res) {
   try {
-    const userId = Number(req.user.id);
-    const { name, description, seed_tracks = [], tracks = [] } = req.body;
-
-    if (!name || !description) {
-      return res.status(400).json({ message: 'name and description are required' });
+    const scene = await Scene.findByPk(req.params.id, {
+      include: [{ model: User, as: 'user', attributes: ['id', 'email'] }],
+    });
+    if (!scene) {
+      return res.status(404).json({ error: 'Scene not found' });
     }
 
-    const scene = await withDbTimeout(
-      sequelize.transaction(async (transaction) => {
-        const [insertResult] = await sequelize.query(
-          `INSERT INTO \`Scene\` (user_id, name, description, seed_tracks)
-           VALUES (:userId, :name, :description, :seedTracks)`,
-          {
-            replacements: {
-              userId,
-              name,
-              description,
-              seedTracks: JSON.stringify(seed_tracks || []),
-            },
-            transaction,
-          }
-        );
+    if (!req.user.is_admin && scene.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
 
-        const sceneId = insertResult.insertId;
-
-        if (Array.isArray(tracks) && tracks.length > 0) {
-          for (const track of tracks) {
-            await sequelize.query(
-              `INSERT INTO \`Track\` (scene_id, platform_id, title, artist, album_art, metadata)
-               VALUES (:sceneId, :platformId, :title, :artist, :albumArt, :metadata)`,
-              {
-                replacements: {
-                  sceneId,
-                  platformId: String(track.platform_id || ''),
-                  title: track.title || 'Untitled',
-                  artist: track.artist || 'Unknown Artist',
-                  albumArt: track.album_art || null,
-                  metadata: track.metadata ? JSON.stringify(track.metadata) : null,
-                },
-                transaction,
-              }
-            );
-          }
-        }
-
-        const [sceneRows] = await sequelize.query(
-          `SELECT id, user_id, name, description, seed_tracks, created_at
-           FROM \`Scene\`
-           WHERE id = :sceneId
-           LIMIT 1`,
-          {
-            replacements: { sceneId },
-            transaction,
-          }
-        );
-
-        const [trackRows] = await sequelize.query(
-          `SELECT id, scene_id, platform_id, title, artist, album_art, metadata
-           FROM \`Track\`
-           WHERE scene_id = :sceneId
-           ORDER BY id ASC`,
-          {
-            replacements: { sceneId },
-            transaction,
-          }
-        );
-
-        return {
-          ...sceneRows[0],
-          tracks: trackRows,
-        };
-      }),
-      'create scene'
-    );
-
-    return res.status(201).json(scene);
+    res.json(scene);
   } catch (error) {
-    return sendDbError(res, error, 'Failed to create scene');
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Create scene
+async function createScene(req, res) {
+  try {
+    const { name, description, seed_tracks } = req.body;
+    const scene = await Scene.create({ user_id: req.user.id, name, description, seed_tracks });
+    res.status(201).json(scene);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+}
+
+// Update scene
+async function updateScene(req, res) {
+  try {
+    const scene = await Scene.findByPk(req.params.id);
+    if (!scene) {
+      return res.status(404).json({ error: 'Scene not found' });
+    }
+
+    if (!req.user.is_admin && scene.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const { name, description, seed_tracks } = req.body;
+    await scene.update({ name, description, seed_tracks });
+    res.json(scene);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+}
+
+// Delete scene
+async function deleteScene(req, res) {
+  try {
+    const scene = await Scene.findByPk(req.params.id);
+    if (!scene) {
+      return res.status(404).json({ error: 'Scene not found' });
+    }
+
+    if (!req.user.is_admin && scene.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await scene.destroy();
+    res.status(204).send();
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 }
 
 module.exports = {
-  getScenes,
+  getAllScenes,
+  getSceneById,
   createScene,
+  updateScene,
+  deleteScene,
 };

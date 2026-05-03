@@ -1,10 +1,19 @@
 const express = require('express');
-const { getScenes, createScene } = require('../controllers/scenesController');
+const {
+  getAllScenes,
+  getSceneById,
+  createScene,
+  updateScene,
+  deleteScene,
+} = require('../controllers/scenesController');
 const { requireAuth } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-router.get('/', requireAuth, getScenes);
+router.get('/', requireAuth, getAllScenes);
+router.get('/:id', requireAuth, getSceneById);
 router.post('/', requireAuth, createScene);
+router.put('/:id', requireAuth, updateScene);
+router.delete('/:id', requireAuth, deleteScene);
 
 module.exports = router;
