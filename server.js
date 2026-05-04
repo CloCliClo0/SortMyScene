@@ -12,6 +12,8 @@ const scenesRoutes = require('./routes/scenes');
 const tokensRoutes = require('./routes/tokens');
 const usersRoutes = require('./routes/users');
 const tracksRoutes = require('./routes/tracks');
+const playlistsRoutes = require('./routes/playlists');
+const verificationRoutes = require('./routes/verification');
 const { passport } = require('./controllers/authController');
 const sequelize = require('./lib/sequelize');
 const { withDbTimeout } = require('./lib/dbGuard');
@@ -65,6 +67,11 @@ app.use('/api/users', usersRoutes);
 app.use('/api/scenes', scenesRoutes);
 app.use('/api/tracks', tracksRoutes);
 app.use('/api/tokens', tokensRoutes);
+app.use('/api/playlists', playlistsRoutes);
+app.use('/api/verification', verificationRoutes);
+
+// Serve asset files from the shared assets folder
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // Serve frontend from React production build.
 const frontendRoot = path.join(__dirname, 'web', 'dist');

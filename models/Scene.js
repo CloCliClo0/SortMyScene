@@ -27,11 +27,15 @@ const Scene = sequelize.define('Scene', {
     type: DataTypes.JSON,
     allowNull: false,
   },
+  sort_criteria: {
+    type: DataTypes.STRING(50),
+    defaultValue: 'popularity',
+  },
 }, {
   tableName: 'Scene',
   timestamps: true,
   createdAt: 'created_at',
-  updatedAt: false,
+  updatedAt: 'updated_at',
   underscored: true,
   indexes: [
     {

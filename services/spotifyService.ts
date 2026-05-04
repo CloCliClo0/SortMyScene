@@ -9,13 +9,11 @@ export function setSpotifyTokenProvider(provider: () => Promise<string>) {
 
 async function getToken(): Promise<string> {
   if (!tokenProvider) {
-    throw new Error('Spotify token provider is not configured. Call setSpotifyTokenProvider first.');
+    throw new Error('Spotify token provider is not configured.');
   }
-
   return tokenProvider();
 }
 
-// The authorization token must be managed dynamically.
 export async function fetchWebApi<T>(endpoint: string, method: HttpMethod, body?: JsonBody): Promise<T> {
   const token = await getToken();
 
@@ -35,6 +33,53 @@ export async function fetchWebApi<T>(endpoint: string, method: HttpMethod, body?
   return (await res.json()) as T;
 }
 
-export async function getTopTracks() {
-  return fetchWebApi('v1/me/top/tracks?time_range=long_term&limit=5', 'GET');
+export async function getUserPlaylists(limit = 50, offset = 0) {
+  return fetchWebApi(
+    `v1/me/playlists?limit=${limit}&offset=${offset}`,
+    'GET'
+  );
+}
+
+export async function getPlaylistTracks(playlistId: string, limit = 100, offset = 0) {
+  return fetchWebApi(
+    `v1/playlists/${playlistId}/tracks?limit=${limit}&offset=${offset}`,
+    'GET'
+  );
+}
+
+export async function getTopTracks(limit = 20, timeRange = 'long_term') {
+  return fetchWebApi(
+    `v1/me/top/tracks?time_range=${timeRange}&limit=${limit}`,
+    'GET'
+  );
+}
+
+export async function getSavedTracks(limit = 50, offset = 0) {
+  return fetchWebApi(
+    `v1/me/tracks?limit=${limit}&offset=${offset}`,
+    'GET'
+  );
+}
+
+export async function searchTracks(query: string, limit = 20) {
+  return fetchWebApi(
+    `v1/search?q=${encodeURIComponent(query)}&type=track&limit=${limit}`,
+    'GET'
+  );
+}
+
+export async function getCurrentUser() {
+  return fetchWebApi('v1/me', 'GET');
+}
+
+export async function getPlaylist(playlistId: string) {
+  return fetchWebApi(`v1/playlists/${playlistId}`, 'GET');
+}
+
+export async function getRecommendations(seedTracks: string[], limit = 20) {
+  const seedParam = seedTracks.slice(0, 5).join(',');
+  return fetchWebApi(
+    `v1/recommendations?seed_tracks=${seedParam}&limit=${limit}`,
+    'GET'
+  );
 }

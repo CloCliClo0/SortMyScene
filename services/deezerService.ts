@@ -64,10 +64,106 @@ export async function deezerGet<T>(path: string, params?: QueryParams): Promise<
   return (await response.json()) as T;
 }
 
-export async function getUserPlaylists(userId: string | number) {
-  return deezerGet(`/user/${userId}/playlists`);
+/**
+ * Récupère les playlists de l'utilisateur Deezer
+ */
+export async function getUserPlaylists(accessToken: string, limit = 50, index = 0) {
+  return deezerGet(`/user/me/playlists`, {
+    access_token: accessToken,
+    limit,
+    index,
+  });
 }
 
+/**
+ * Récupère les tracks d'une playlist Deezer
+ */
+export async function getPlaylistTracks(playlistId: string | number, accessToken: string, limit = 100, index = 0) {
+  return deezerGet(`/playlist/${playlistId}/tracks`, {
+    access_token: accessToken,
+    limit,
+    index,
+  });
+}
+
+/**
+ * Récupère les informations d'une playlist
+ */
+export async function getPlaylist(playlistId: string | number, accessToken: string) {
+  return deezerGet(`/playlist/${playlistId}`, { access_token: accessToken });
+}
+
+/**
+ * Récupère les informations d'un album
+ */
 export async function getAlbum(albumId: string | number) {
   return deezerGet(`/album/${albumId}`);
+}
+
+/**
+ * Récupère les informations d'une artiste
+ */
+export async function getArtist(artistId: string | number) {
+  return deezerGet(`/artist/${artistId}`);
+}
+
+/**
+ * Récupère les top tracks d'une artiste
+ */
+export async function getArtistTopTracks(artistId: string | number, limit = 50) {
+  return deezerGet(`/artist/${artistId}/top`, { limit });
+}
+
+/**
+ * Recherche des tracks sur Deezer
+ */
+export async function searchTracks(query: string, limit = 50, index = 0) {
+  return deezerGet(`/search`, { q: query, limit, index });
+}
+
+/**
+ * Recherche des playlists sur Deezer
+ */
+export async function searchPlaylists(query: string, limit = 50, index = 0) {
+  return deezerGet(`/search/playlist`, { q: query, limit, index });
+}
+
+/**
+ * Récupère les informations de l'utilisateur
+ */
+export async function getCurrentUser(accessToken: string) {
+  return deezerGet(`/user/me`, { access_token: accessToken });
+}
+
+/**
+ * Récupère les favoris de l'utilisateur
+ */
+export async function getUserFavoriteTracks(accessToken: string, limit = 50, index = 0) {
+  return deezerGet(`/user/me/tracks`, {
+    access_token: accessToken,
+    limit,
+    index,
+  });
+}
+
+/**
+ * Récupère les albums favoris de l'utilisateur
+ */
+export async function getUserFavoriteAlbums(accessToken: string, limit = 50, index = 0) {
+  return deezerGet(`/user/me/albums`, {
+    access_token: accessToken,
+    limit,
+    index,
+  });
+}
+
+/**
+ * Récupère les artistes favoris de l'utilisateur
+ */
+export async function getUserFavoriteArtists(accessToken: string, limit = 50, index = 0) {
+  return deezerGet(`/user/me/artists`, {
+    access_token: accessToken,
+    limit,
+    index,
+  });
 }

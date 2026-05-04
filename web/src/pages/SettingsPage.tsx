@@ -3,8 +3,16 @@ import { useI18n } from '../i18n/LanguageContext';
 
 type ProviderStatus = 'loading' | 'connected' | 'not_connected';
 
+type Profile = {
+  id: number;
+  email: string;
+  theme?: string;
+  language?: string;
+};
+
 function SettingsPage() {
   const { t } = useI18n();
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [darkMode, setDarkMode] = useState(true);
   const [enhanceMetadata, setEnhanceMetadata] = useState(true);
   const [autoFillBpm, setAutoFillBpm] = useState(false);
@@ -13,6 +21,7 @@ function SettingsPage() {
   const [spotifyStatus, setSpotifyStatus] = useState<ProviderStatus>('loading');
   const [youtubeStatus, setYouTubeStatus] = useState<ProviderStatus>('loading');
   const [providerMessage, setProviderMessage] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -30,25 +39,67 @@ function SettingsPage() {
       setProviderMessage(t('settings.deezerError'));
     }
 
-    Promise.all([
-      fetch('/api/tokens/deezer', { credentials: 'include' }),
-      fetch('/api/tokens/spotify', { credentials: 'include' }),
-      fetch('/api/tokens/youtube', { credentials: 'include' }),
-    ])
-      .then(async ([deezerRes, spotifyRes, youtubeRes]) => {
+    async function loadProfile() {
+      try {
+        const response = await fetch('/api/auth/me', { credentials: 'include' });
+        if (!response.ok) {
+          return;
+        }
+        const data = await response.json();
+        setProfile(data.user);
+        setDarkMode(data.user.theme !== 'light');
+      } catch {
+        // ignore
+      }
+    }
+
+    async function loadProviders() {
+      try {
+        const [deezerRes, spotifyRes, youtubeRes] = await Promise.all([
+          fetch('/api/tokens/deezer', { credentials: 'include' }),
+          fetch('/api/tokens/spotify', { credentials: 'include' }),
+          fetch('/api/tokens/youtube', { credentials: 'include' }),
+        ]);
+
         const deezerPayload = deezerRes.ok ? await deezerRes.json() : null;
         const spotifyPayload = spotifyRes.ok ? await spotifyRes.json() : null;
         const youtubePayload = youtubeRes.ok ? await youtubeRes.json() : null;
+
         setDeezerStatus(deezerPayload ? 'connected' : 'not_connected');
         setSpotifyStatus(spotifyPayload ? 'connected' : 'not_connected');
         setYouTubeStatus(youtubePayload ? 'connected' : 'not_connected');
-      })
-      .catch(() => {
+      } catch {
         setDeezerStatus('not_connected');
         setSpotifyStatus('not_connected');
         setYouTubeStatus('not_connected');
-      });
+      }
+    }
+
+    loadProfile();
+    loadProviders();
   }, [t]);
+
+  const saveSettings = async () => {
+    if (!profile) return;
+    setSaveMessage('');
+    try {
+      const response = await fetch(`/api/users/${profile.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          theme: darkMode ? 'dark' : 'light',
+          language: profile.language || 'en',
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to save settings');
+      }
+      setSaveMessage('Saved successfully');
+    } catch {
+      setSaveMessage('Unable to save settings');
+    }
+  };
 
   return (
     <section className="space-y-6">
@@ -59,6 +110,11 @@ function SettingsPage() {
 
       <article className="card-panel p-6">
         <h3 className="mb-4 text-display text-3xl font-semibold text-white">{t('settings.account')}</h3>
+        {profile ? (
+          <p className="mb-4 text-sm text-slate-300">Email: {profile.email}</p>
+        ) : (
+          <p className="mb-4 text-sm text-slate-400">Loading profile…</p>
+        )}
         {providerMessage && <p className="mb-4 text-sm text-cyan-300">{providerMessage}</p>}
         <div className="space-y-3">
           <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-4">
@@ -103,7 +159,20 @@ function SettingsPage() {
       </article>
 
       <article className="card-panel p-6">
-        <h3 className="mb-4 text-display text-3xl font-semibold text-white">{t('settings.aiPrefs')}</h3>
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-display text-3xl font-semibold text-white">{t('settings.aiPrefs')}</h3>
+            <p className="text-sm text-slate-400">Adjust how the app generates your scenes and metadata.</p>
+          </div>
+          <button
+            type="button"
+            onClick={saveSettings}
+            className="rounded-full border border-cyan-300/50 bg-cyan-500/10 px-5 py-3 text-sm text-cyan-200 hover:bg-cyan-500/15"
+          >
+            Save settings
+          </button>
+        </div>
+        {saveMessage && <p className="mb-4 text-sm text-slate-300">{saveMessage}</p>}
         <div className="space-y-4">
           <div>
             <div className="mb-2 flex justify-between text-xs uppercase tracking-[0.16em] text-slate-500">

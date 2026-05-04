@@ -1,8 +1,19 @@
 const { Track, Scene } = require('../models');
+const { processTracks, getSortOptions, getTrackStats } = require('../services/trackSortService');
 
 async function getAllTracks(req, res) {
   try {
     const sceneId = req.query.sceneId;
+    const sortBy = req.query.sortBy || 'popularity';
+    const filters = {
+      minDuration: req.query.minDuration ? parseInt(req.query.minDuration) : undefined,
+      maxDuration: req.query.maxDuration ? parseInt(req.query.maxDuration) : undefined,
+      minPopularity: req.query.minPopularity ? parseInt(req.query.minPopularity) : undefined,
+      artist: req.query.artist,
+      title: req.query.title,
+      provider: req.query.provider,
+    };
+
     let where = {};
 
     if (sceneId) {
@@ -23,12 +34,24 @@ async function getAllTracks(req, res) {
       where = { scene_id: sceneIds };
     }
 
-    const tracks = await Track.findAll({
+    let tracks = await Track.findAll({
       where,
       include: [{ model: Scene, as: 'scene', attributes: ['id', 'name'] }],
       order: [['id', 'ASC']],
     });
-    res.json(tracks);
+
+    // Applique le tri et le filtrage
+    tracks = processTracks(tracks, sortBy, filters);
+
+    // Ajoute les statistiques
+    const stats = getTrackStats(tracks);
+
+    res.json({
+      data: tracks,
+      stats,
+      sortBy,
+      filters,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

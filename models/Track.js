@@ -15,6 +15,11 @@ const Track = sequelize.define('Track', {
       key: 'id',
     },
   },
+  provider: {
+    type: DataTypes.ENUM('spotify', 'youtube', 'deezer'),
+    defaultValue: 'spotify',
+    allowNull: false,
+  },
   platform_id: {
     type: DataTypes.STRING(191),
     allowNull: false,
@@ -31,18 +36,32 @@ const Track = sequelize.define('Track', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  duration_ms: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  popularity: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
   metadata: {
     type: DataTypes.JSON,
     allowNull: true,
   },
 }, {
   tableName: 'Track',
-  timestamps: false,
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: false,
   underscored: true,
   indexes: [
     {
       name: 'Track_scene_id_idx',
       fields: ['scene_id'],
+    },
+    {
+      name: 'Track_platform_id_idx',
+      fields: ['platform_id'],
     },
   ],
 });

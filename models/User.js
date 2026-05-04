@@ -23,6 +23,26 @@ const User = sequelize.define('User', {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
+  email_verified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  email_verification_code: {
+    type: DataTypes.STRING(6),
+    allowNull: true,
+  },
+  email_verification_expires: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  theme: {
+    type: DataTypes.STRING(10),
+    defaultValue: 'dark',
+  },
+  language: {
+    type: DataTypes.STRING(5),
+    defaultValue: 'en',
+  },
 }, {
   tableName: 'User',
   timestamps: true,

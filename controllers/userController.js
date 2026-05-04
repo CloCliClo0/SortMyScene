@@ -116,14 +116,24 @@ async function updateUser(req, res) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    const { email, password } = req.body;
-    const updateData = { email };
+    const { email, password, theme, language } = req.body;
+    const updateData = {};
+
+    if (email) {
+      updateData.email = email;
+    }
     if (password) {
       updateData.password_hash = await bcrypt.hash(password, 10);
     }
+    if (theme) {
+      updateData.theme = theme;
+    }
+    if (language) {
+      updateData.language = language;
+    }
 
     await user.update(updateData);
-    res.json({ id: user.id, email: user.email, is_admin: user.is_admin });
+    res.json({ id: user.id, email: user.email, is_admin: user.is_admin, theme: user.theme, language: user.language });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

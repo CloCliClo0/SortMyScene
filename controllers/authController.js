@@ -30,6 +30,16 @@ function getAppOrigin() {
   return process.env.APP_ORIGIN || 'http://localhost:5173';
 }
 
+function getBackendOrigin() {
+  if (process.env.SERVER_ORIGIN) {
+    return process.env.SERVER_ORIGIN;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.APP_ORIGIN || 'https://sortmyscene.fr';
+  }
+  return 'http://localhost:3000';
+}
+
 function buildOAuthState(userId, provider) {
   const secret = process.env.JWT_SECRET || 'dev-insecure-secret-change-me';
   return jwt.sign(
@@ -109,12 +119,21 @@ async function register(req, res) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Génère un code de vérification 6 caractères
+    const verificationCode = generateVerificationCode();
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 heures
+
     const user = await withDbTimeout(
       sequelize.query(
-        `INSERT INTO \`User\` (email, password_hash)
-         VALUES (:email, :passwordHash)`,
+        `INSERT INTO \`User\` (email, password_hash, email_verification_code, email_verification_expires, email_verified)
+         VALUES (:email, :passwordHash, :code, :expires, FALSE)`,
         {
-          replacements: { email: normalizedEmail, passwordHash: hashedPassword },
+          replacements: {
+            email: normalizedEmail,
+            passwordHash: hashedPassword,
+            code: verificationCode,
+            expires: verificationExpires,
+          },
         }
       ).then(([result]) => ({
         id: result.insertId,
@@ -124,13 +143,34 @@ async function register(req, res) {
       'register create user'
     );
 
+    // Envoie un email de vérification
+    const { sendVerificationEmail } = require('../services/emailService');
+    const emailResult = await sendVerificationEmail(normalizedEmail, verificationCode);
+
+    if (!emailResult.success) {
+      console.warn('[register] Failed to send verification email:', emailResult.error);
+    }
+
     const token = signToken(user);
     setAuthCookie(res, token);
 
-    return res.status(201).json({ user: { id: user.id, email: user.email } });
+    return res.status(201).json({
+      user: { id: user.id, email: user.email },
+      message: 'Registration successful. Please check your email to verify your account.',
+      emailVerificationRequired: true,
+    });
   } catch (error) {
     return sendDbError(res, error, 'Failed to register');
   }
+}
+
+function generateVerificationCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
 }
 
 async function login(req, res) {
@@ -215,7 +255,8 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/api/auth/google/callback',
+      callbackURL:
+        process.env.GOOGLE_CALLBACK_URL || `${getBackendOrigin()}/api/auth/google/callback`,
     },
     async (_accessToken, _refreshToken, profile, done) => {
       try {
@@ -291,13 +332,13 @@ function getYouTubeClientConfig() {
     clientId: process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET,
     callbackUrl:
-      process.env.YOUTUBE_CALLBACK_URL || `${getAppOrigin()}/api/auth/youtube/callback`,
+      process.env.YOUTUBE_CALLBACK_URL || `${getBackendOrigin()}/api/auth/youtube/callback`,
   };
 }
 
 function connectSpotify(req, res) {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const callbackUrl = process.env.SPOTIFY_CALLBACK_URL || `${getAppOrigin()}/api/auth/spotify/callback`;
+  const callbackUrl = process.env.SPOTIFY_CALLBACK_URL || `${getBackendOrigin()}/api/auth/spotify/callback`;
 
   if (!clientId) {
     return res.status(500).json({ message: 'SPOTIFY_CLIENT_ID is not configured' });
@@ -415,7 +456,7 @@ async function spotifyCallback(req, res) {
     const userId = verifyOAuthState(state, 'spotify');
     const clientId = process.env.SPOTIFY_CLIENT_ID;
     const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-    const callbackUrl = process.env.SPOTIFY_CALLBACK_URL || `${getAppOrigin()}/api/auth/spotify/callback`;
+    const callbackUrl = process.env.SPOTIFY_CALLBACK_URL || `${getBackendOrigin()}/api/auth/spotify/callback`;
 
     if (!clientId || !clientSecret) {
       return res.redirect(`${appOrigin}/settings?spotifyAuth=error`);
@@ -456,7 +497,7 @@ async function spotifyCallback(req, res) {
 
 function connectDeezer(req, res) {
   const appId = process.env.DEEZER_APP_ID;
-  const callbackUrl = process.env.DEEZER_CALLBACK_URL || `${getAppOrigin()}/api/auth/deezer/callback`;
+  const callbackUrl = process.env.DEEZER_CALLBACK_URL || `${getBackendOrigin()}/api/auth/deezer/callback`;
 
   if (!appId) {
     return res.status(500).json({ message: 'DEEZER_APP_ID is not configured' });
@@ -485,7 +526,7 @@ async function deezerCallback(req, res) {
     const userId = verifyOAuthState(state, 'deezer');
     const appId = process.env.DEEZER_APP_ID;
     const appSecret = process.env.DEEZER_APP_SECRET;
-    const callbackUrl = process.env.DEEZER_CALLBACK_URL || `${getAppOrigin()}/api/auth/deezer/callback`;
+    const callbackUrl = process.env.DEEZER_CALLBACK_URL || `${getBackendOrigin()}/api/auth/deezer/callback`;
 
     if (!appId || !appSecret) {
       return res.redirect(`${appOrigin}/settings?deezerAuth=error`);

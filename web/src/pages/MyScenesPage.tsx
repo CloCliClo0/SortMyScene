@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../i18n/LanguageContext';
 
 type Scene = {
@@ -11,6 +12,7 @@ type Scene = {
 
 function MyScenesPage() {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,8 +43,19 @@ function MyScenesPage() {
   return (
     <section className="space-y-6">
       <header className="space-y-3">
-        <h2 className="text-display text-5xl font-semibold text-white max-sm:text-4xl">{t('scenes.title')}</h2>
-        <p className="text-slate-400">{t('scenes.subtitle')}</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-display text-5xl font-semibold text-white max-sm:text-4xl">{t('scenes.title')}</h2>
+            <p className="text-slate-400">{t('scenes.subtitle')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/studio')}
+            className="rounded-full border border-cyan-300/50 bg-cyan-500/10 px-5 py-3 text-sm text-cyan-200 hover:bg-cyan-500/15"
+          >
+            Create a new scene
+          </button>
+        </div>
         <input
           className="w-full rounded-xl border-b-2 border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none md:max-w-md"
           placeholder={t('scenes.search')}
@@ -64,7 +77,7 @@ function MyScenesPage() {
             <article key={scene.id} className="card-panel overflow-hidden p-0">
               <div className="relative h-36 bg-gradient-to-br from-cyan-500/35 to-purple-500/35">
                 <span className="absolute right-3 top-3 rounded-md bg-black/40 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white">
-                  128 BPM
+                  {scene.tracks?.length ?? 0} tracks
                 </span>
               </div>
               <div className="p-4">
@@ -84,6 +97,13 @@ function MyScenesPage() {
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/90 text-2xl">+</div>
             <p className="text-lg text-white">{t('scenes.createCardTitle')}</p>
             <p className="mt-1 text-sm text-slate-400">{t('scenes.createCardText')}</p>
+            <button
+              type="button"
+              onClick={() => navigate('/studio')}
+              className="mt-4 rounded-full border border-cyan-300/50 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-200 hover:bg-cyan-500/15"
+            >
+              Go to studio
+            </button>
           </article>
 
           {!scenes.length && <p className="text-slate-400">{t('common.noScenes')}</p>}

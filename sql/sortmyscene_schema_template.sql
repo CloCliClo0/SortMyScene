@@ -1,6 +1,7 @@
--- SortMyScene MySQL schema template
+-- SortMyScene MySQL schema template (Updated 2024)
 -- Compatible with phpMyAdmin import
 -- Charset: utf8mb4
+-- Features: Email verification (6-char code), multi-provider support, user preferences
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
@@ -16,22 +17,33 @@ CREATE TABLE IF NOT EXISTS `User` (
   `email` VARCHAR(191) NOT NULL,
   `password_hash` VARCHAR(191) NULL,
   `is_admin` BOOLEAN NOT NULL DEFAULT FALSE,
+  `email_verified` BOOLEAN NOT NULL DEFAULT FALSE,
+  `email_verification_code` VARCHAR(6) NULL,
+  `email_verification_expires` DATETIME NULL,
+  `theme` VARCHAR(10) DEFAULT 'dark',
+  `language` VARCHAR(5) DEFAULT 'en',
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `User_email_key` (`email`)
+  UNIQUE KEY `User_email_key` (`email`),
+  KEY `User_email_verified_idx` (`email_verified`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Existing production databases can be updated with:
--- ALTER TABLE `User` ADD COLUMN `is_admin` BOOLEAN NOT NULL DEFAULT FALSE;
--- ALTER TABLE `OAuthToken` MODIFY `provider` ENUM('deezer', 'spotify', 'youtube') NOT NULL;
+-- ALTER TABLE `User` ADD COLUMN `email_verified` BOOLEAN NOT NULL DEFAULT FALSE;
+-- ALTER TABLE `User` ADD COLUMN `email_verification_code` VARCHAR(6) NULL;
+-- ALTER TABLE `User` ADD COLUMN `email_verification_expires` DATETIME NULL;
+-- ALTER TABLE `User` ADD COLUMN `theme` VARCHAR(10) DEFAULT 'dark';
+-- ALTER TABLE `User` ADD COLUMN `language` VARCHAR(5) DEFAULT 'en';
 
 CREATE TABLE IF NOT EXISTS `OAuthToken` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `user_id` INT NOT NULL,
-  `provider` ENUM('deezer', 'spotify', 'youtube') NOT NULL,
-  `access_token` TEXT NOT NULL,
-  `refresh_token` TEXT NULL,
+  `provider` ENUM('google', 'spotify', 'youtube', 'deezer') NOT NULL,
+  `access_token` LONGTEXT NOT NULL,
+  `refresh_token` LONGTEXT NULL,
   `expires_in` INT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NULL ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   UNIQUE KEY `OAuthToken_user_id_provider_key` (`user_id`, `provider`),
   KEY `OAuthToken_user_id_idx` (`user_id`),
@@ -41,13 +53,22 @@ CREATE TABLE IF NOT EXISTS `OAuthToken` (
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Existing production databases can be updated with:
+-- ALTER TABLE `OAuthToken` MODIFY `provider` ENUM('google', 'spotify', 'youtube', 'deezer') NOT NULL;
+-- ALTER TABLE `OAuthToken` MODIFY `access_token` LONGTEXT NOT NULL;
+-- ALTER TABLE `OAuthToken` MODIFY `refresh_token` LONGTEXT NULL;
+-- ALTER TABLE `OAuthToken` ADD COLUMN `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3);
+-- ALTER TABLE `OAuthToken` ADD COLUMN `updated_at` DATETIME(3) NULL ON UPDATE CURRENT_TIMESTAMP(3);
+
 CREATE TABLE IF NOT EXISTS `Scene` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `user_id` INT NOT NULL,
   `name` VARCHAR(191) NOT NULL,
-  `description` TEXT NOT NULL,
+  `description` LONGTEXT NOT NULL,
   `seed_tracks` JSON NOT NULL,
+  `sort_criteria` VARCHAR(50) DEFAULT 'popularity',
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NULL ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   KEY `Scene_user_id_idx` (`user_id`),
   CONSTRAINT `Scene_user_id_fkey`
@@ -56,20 +77,56 @@ CREATE TABLE IF NOT EXISTS `Scene` (
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Existing production databases can be updated with:
+-- ALTER TABLE `Scene` MODIFY `description` LONGTEXT NOT NULL;
+-- ALTER TABLE `Scene` ADD COLUMN `sort_criteria` VARCHAR(50) DEFAULT 'popularity';
+-- ALTER TABLE `Scene` ADD COLUMN `updated_at` DATETIME(3) NULL ON UPDATE CURRENT_TIMESTAMP(3);
+
 CREATE TABLE IF NOT EXISTS `Track` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `scene_id` INT NOT NULL,
+  `provider` ENUM('spotify', 'youtube', 'deezer') NOT NULL DEFAULT 'spotify',
   `platform_id` VARCHAR(191) NOT NULL,
   `title` VARCHAR(191) NOT NULL,
   `artist` VARCHAR(191) NOT NULL,
-  `album_art` TEXT NULL,
+  `album_art` LONGTEXT NULL,
+  `duration_ms` INT NULL,
+  `popularity` INT NULL,
   `metadata` JSON NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   KEY `Track_scene_id_idx` (`scene_id`),
+  KEY `Track_platform_id_idx` (`platform_id`),
   CONSTRAINT `Track_scene_id_fkey`
     FOREIGN KEY (`scene_id`) REFERENCES `Scene` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Existing production databases can be updated with:
+-- ALTER TABLE `Track` ADD COLUMN `provider` ENUM('spotify', 'youtube', 'deezer') NOT NULL DEFAULT 'spotify' AFTER `scene_id`;
+-- ALTER TABLE `Track` MODIFY `album_art` LONGTEXT NULL;
+-- ALTER TABLE `Track` ADD COLUMN `duration_ms` INT NULL;
+-- ALTER TABLE `Track` ADD COLUMN `popularity` INT NULL;
+-- ALTER TABLE `Track` ADD COLUMN `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3);
+
+CREATE TABLE IF NOT EXISTS `UserPlaylist` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `user_id` INT NOT NULL,
+  `provider` ENUM('spotify', 'youtube', 'deezer') NOT NULL,
+  `playlist_id` VARCHAR(191) NOT NULL,
+  `playlist_name` VARCHAR(191) NOT NULL,
+  `platform_url` LONGTEXT NULL,
+  `track_count` INT DEFAULT 0,
+  `cached_at` DATETIME(3) NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `UserPlaylist_user_provider_id_key` (`user_id`, `provider`, `playlist_id`),
+  KEY `UserPlaylist_user_id_idx` (`user_id`),
+  CONSTRAINT `UserPlaylist_user_id_fkey`
+    FOREIGN KEY (`user_id`) REFERENCES `User` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
+

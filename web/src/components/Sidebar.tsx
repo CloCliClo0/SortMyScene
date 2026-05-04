@@ -14,9 +14,12 @@ function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 hidden h-screen w-[280px] border-r border-white/10 bg-slate-950/60 p-6 backdrop-blur-xl md:block">
-      <div className="mb-10">
-        <p className="text-display bg-gradient-to-br from-cyan-400 to-purple-500 bg-clip-text text-2xl font-bold text-transparent">{t('app.brand')}</p>
-        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">{t('app.role')}</p>
+      <div className="mb-10 flex items-center gap-3">
+        <img src="/assets/img/logo_app.jpg" alt="SortMyScene logo" className="h-12 w-12 rounded-2xl object-cover" />
+        <div>
+          <p className="text-display bg-gradient-to-br from-cyan-400 to-purple-500 bg-clip-text text-2xl font-bold text-transparent">{t('app.brand')}</p>
+          <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">{t('app.role')}</p>
+        </div>
       </div>
 
       <nav className="space-y-2">
