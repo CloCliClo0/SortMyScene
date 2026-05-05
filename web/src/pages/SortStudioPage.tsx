@@ -4,6 +4,7 @@ import { useI18n } from '../i18n/LanguageContext';
 type PlaylistOption = {
   id: string;
   name: string;
+  image?: string | null;
   tracks: number;
   provider: 'spotify' | 'youtube';
 };
@@ -184,18 +185,36 @@ function SortStudioPage() {
             </button>
           </div>
           <label className="mt-5 mb-2 block text-xs uppercase tracking-[0.16em] text-slate-500">{t('studio.sourcePlaylist')}</label>
-          <select
-            className="w-full rounded-xl border border-white/10 bg-slate-950/80 p-3 text-white focus:border-cyan-400/50 focus:outline-none"
-            value={selectedPlaylistId}
-            onChange={(e) => setSelectedPlaylistId(e.target.value)}
-          >
-            <option value="">Select a playlist</option>
-            {playlists.map((playlist) => (
-              <option key={playlist.id} value={playlist.id}>
-                {playlist.name} ({playlist.tracks} tracks)
-              </option>
-            ))}
-          </select>
+          <div className="space-y-3">
+            <div className="rounded-xl border border-white/10 bg-slate-950/80 p-3">
+              <label className="mb-2 block text-xs uppercase tracking-[0.16em] text-slate-500">Select playlist</label>
+              <select
+                className="w-full rounded-xl border border-white/10 bg-slate-950/80 p-3 text-white focus:border-cyan-400/50 focus:outline-none"
+                value={selectedPlaylistId}
+                onChange={(e) => setSelectedPlaylistId(e.target.value)}
+              >
+                <option value="">Select a playlist</option>
+                {playlists.map((playlist) => (
+                  <option key={playlist.id} value={playlist.id}>
+                    {playlist.name} ({playlist.tracks} tracks)
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedPlaylist && (
+              <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-950/80 p-3">
+                {selectedPlaylist.image ? (
+                  <img src={selectedPlaylist.image} alt={selectedPlaylist.name} className="h-16 w-16 rounded-xl object-cover" />
+                ) : (
+                  <div className="grid h-16 w-16 place-items-center rounded-xl bg-slate-800 text-slate-500">No cover</div>
+                )}
+                <div>
+                  <p className="font-semibold text-white">{selectedPlaylist.name}</p>
+                  <p className="text-sm text-slate-400">{selectedPlaylist.tracks} tracks</p>
+                </div>
+              </div>
+            )}
+          </div>
           {loadingPlaylists && <p className="mt-3 text-sm text-slate-400">Loading playlists…</p>}
           {!loadingPlaylists && !playlists.length && (
             <p className="mt-3 text-sm text-slate-400">{statusMessage || `Connect ${provider} to load playlists.`}</p>

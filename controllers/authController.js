@@ -258,7 +258,7 @@ passport.use(
       callbackURL:
         process.env.GOOGLE_CALLBACK_URL || `${getBackendOrigin()}/api/auth/google/callback`,
     },
-    async (_accessToken, _refreshToken, profile, done) => {
+    async (accessToken, refreshToken, profile, done) => {
       try {
         const email = profile.emails?.[0]?.value;
         if (!email) return done(new Error('No email from Google'));
@@ -291,6 +291,17 @@ passport.use(
             'google create user'
           );
         }
+
+        if (accessToken) {
+          await saveOAuthToken({
+            userId: user.id,
+            provider: 'youtube',
+            accessToken,
+            refreshToken: refreshToken || null,
+            expiresIn: null,
+          });
+        }
+
         return done(null, user);
       } catch (err) {
         return done(err);

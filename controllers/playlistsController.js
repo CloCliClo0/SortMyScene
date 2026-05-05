@@ -115,7 +115,14 @@ async function getSpotifyPlaylists(accessToken) {
   }
 
   const data = await response.json();
-  return data.items || [];
+  return (data.items || []).map((item) => ({
+    id: item.id,
+    name: item.name,
+    image: item.images?.[0]?.url || null,
+    tracks: item.tracks?.total ?? 0,
+    provider: 'spotify',
+    raw: item,
+  }));
 }
 
 async function getSpotifyPlaylistTracks(accessToken, playlistId) {
@@ -142,7 +149,14 @@ async function getDeezerPlaylists(accessToken) {
   }
 
   const data = await response.json();
-  return data.data || [];
+  return (data.data || []).map((item) => ({
+    id: item.id,
+    name: item.title,
+    image: item.picture_medium || item.picture_small || item.picture_big || null,
+    tracks: item.nb_tracks ?? 0,
+    provider: 'deezer',
+    raw: item,
+  }));
 }
 
 async function getDeezerPlaylistTracks(accessToken, playlistId) {
@@ -169,7 +183,14 @@ async function getYoutubePlaylists(accessToken) {
   }
 
   const data = await response.json();
-  return data.items || [];
+  return (data.items || []).map((item) => ({
+    id: item.id,
+    name: item.snippet?.title || 'YouTube playlist',
+    image: item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || null,
+    tracks: item.contentDetails?.itemCount ?? 0,
+    provider: 'youtube',
+    raw: item,
+  }));
 }
 
 async function getYoutubePlaylistTracks(accessToken, playlistId) {

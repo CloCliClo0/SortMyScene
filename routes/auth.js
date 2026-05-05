@@ -25,7 +25,15 @@ router.get('/me', requireAuth, me);
 router.get('/providers', getProvidersStatus);
 
 // Google OAuth2
-router.get('/google', passport.authenticate('google', { scope: ['email', 'profile'], session: false }));
+router.get(
+  '/google',
+  passport.authenticate('google', {
+    scope: ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/youtube.readonly'],
+    accessType: 'offline',
+    prompt: 'consent',
+    session: false,
+  })
+);
 router.get(
   '/google/callback',
   passport.authenticate('google', { failureRedirect: '/login?error=google_failed', session: false }),

@@ -4,6 +4,7 @@ import { useI18n } from '../i18n/LanguageContext';
 type PlaylistItem = {
   id: string;
   name: string;
+  image?: string | null;
   tracks: number;
   provider: 'spotify' | 'youtube';
 };
@@ -181,7 +182,13 @@ function RawLibraryPage() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {playlists.map((playlist) => (
               <div key={`${playlist.provider}-${playlist.id}`} className="overflow-hidden rounded-xl border border-white/10 bg-slate-900/50">
-                <div className="h-32 bg-gradient-to-br from-cyan-500/35 to-purple-500/35" />
+                <div className="relative h-32 overflow-hidden bg-slate-900">
+                  {playlist.image ? (
+                    <img src={playlist.image} alt={playlist.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center bg-slate-800 text-slate-500">No cover</div>
+                  )}
+                </div>
                 <div className="p-3">
                   <p className="font-medium text-white">{playlist.name}</p>
                   <p className="text-xs text-slate-400">{playlist.tracks} {t('common.tracks')} • {playlist.provider}</p>

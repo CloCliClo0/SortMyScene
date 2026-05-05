@@ -39,7 +39,7 @@ function logStartupInfo() {
 }
 
 app.use(cors({
-  origin: true,
+  origin: process.env.APP_ORIGIN || 'http://localhost:5173',
   credentials: true,
 }));
 app.use(cookieParser());
