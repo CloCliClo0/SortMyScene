@@ -103,7 +103,7 @@ async function getPlaylistTracks(req, res) {
 
 // Fonctions helper pour chaque provider
 async function getSpotifyPlaylists(accessToken) {
-  const response = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
+  const response = await fetch('https://api.spotify.com/v1/me/playlists', {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
@@ -126,7 +126,7 @@ async function getSpotifyPlaylists(accessToken) {
 }
 
 async function getSpotifyPlaylistTracks(accessToken, playlistId) {
-  const response = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`, {
+  const response = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
