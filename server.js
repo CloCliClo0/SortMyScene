@@ -14,6 +14,7 @@ const usersRoutes = require('./routes/users');
 const tracksRoutes = require('./routes/tracks');
 const playlistsRoutes = require('./routes/playlists');
 const verificationRoutes = require('./routes/verification');
+const chatRoutes = require('./routes/chat');
 const { passport } = require('./controllers/authController');
 const sequelize = require('./lib/sequelize');
 const { withDbTimeout } = require('./lib/dbGuard');
@@ -73,6 +74,7 @@ app.use('/api/tracks', tracksRoutes);
 app.use('/api/tokens', tokensRoutes);
 app.use('/api/playlists', playlistsRoutes);
 app.use('/api/verification', verificationRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Serve asset files from the shared assets folder
 app.use('/assets', express.static(path.join(__dirname, 'assets')));

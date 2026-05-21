@@ -2,6 +2,7 @@ import { Link, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import AuthMenu from '../components/AuthMenu';
 import BottomNav from '../components/BottomNav';
+import ChatWidget from '../components/ChatWidget';
 import Sidebar from '../components/Sidebar';
 import { useI18n } from '../i18n/LanguageContext';
 
@@ -74,6 +75,7 @@ function AppShell() {
       </main>
 
       <BottomNav />
+      <ChatWidget />
     </div>
   );
 }

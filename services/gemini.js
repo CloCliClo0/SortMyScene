@@ -101,4 +101,38 @@ Return ONLY the JSON array — no explanation, no markdown fences.
     .map((i) => tracks[i]);
 }
 
-module.exports = { filterSongsForScene, filterTracksForScene };
+const ASSISTANT_SYSTEM = `
+You are SortMyScene Assistant, a helpful AI embedded in the SortMyScene music curation app.
+You help users with three things:
+1. APP USAGE: Explain how to use SortMyScene features (create scenes, connect Spotify/YouTube in Settings, use Sort Studio, manage playlists in Library, edit scenes).
+2. MUSIC RECOMMENDATIONS: Suggest moods, genres, artists, or playlist ideas based on what the user describes.
+3. CURATION PROMPTS: Help the user write better scene descriptions/prompts for the Gemini AI sort (e.g. "melodic house for a sunset beach bar" or "dark ambient for late-night focus").
+
+Always be concise, friendly, and music-focused. Reply in the same language as the user (French or English).
+If asked about something unrelated to music or the app, politely redirect.
+`.trim();
+
+/**
+ * Multi-turn chat assistant using Gemini.
+ * @param {Array<{role: 'user'|'model', parts: string}>} history - Previous turns.
+ * @param {string} message - New user message.
+ * @returns {Promise<string>} Assistant reply.
+ */
+async function chatWithAssistant(history, message) {
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-1.5-flash',
+    systemInstruction: ASSISTANT_SYSTEM,
+  });
+
+  const chat = model.startChat({
+    history: history.map((turn) => ({
+      role: turn.role,
+      parts: [{ text: turn.parts }],
+    })),
+  });
+
+  const result = await chat.sendMessage(message);
+  return result.response.text().trim();
+}
+
+module.exports = { filterSongsForScene, filterTracksForScene, chatWithAssistant };
