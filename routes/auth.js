@@ -5,7 +5,7 @@ const {
   logout,
   me,
   getProvidersStatus,
-  passport,
+  connectGoogle,
   googleCallback,
   connectSpotify,
   spotifyCallback,
@@ -24,33 +24,21 @@ router.post('/logout', logout);
 router.get('/me', requireAuth, me);
 router.get('/providers', getProvidersStatus);
 
-// Google OAuth2
-router.get(
-  '/google',
-  passport.authenticate('google', {
-    scope: ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/youtube.readonly'],
-    accessType: 'offline',
-    prompt: 'consent',
-    session: false,
-  })
-);
-router.get(
-  '/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login?error=google_failed', session: false }),
-  googleCallback
-);
+// Google OAuth2 — implémentation manuelle (pas de passport.authenticate, pas de session)
+router.get('/google', connectGoogle);
+router.get('/google/callback', googleCallback);
 
-// Spotify OAuth2 (account linking)
+// Spotify OAuth2 (liaison de compte)
 router.get('/spotify', requireAuth, connectSpotify);
 router.get('/spotify/connect', requireAuth, connectSpotify);
 router.get('/spotify/callback', spotifyCallback);
 
-// YouTube OAuth2 (account linking for YouTube Music sources)
+// YouTube OAuth2 (liaison de compte pour sources YouTube Music)
 router.get('/youtube', requireAuth, connectYouTube);
 router.get('/youtube/connect', requireAuth, connectYouTube);
 router.get('/youtube/callback', youtubeCallback);
 
-// Deezer OAuth2 (account linking)
+// Deezer OAuth2 (liaison de compte)
 router.get('/deezer', requireAuth, connectDeezer);
 router.get('/deezer/connect', requireAuth, connectDeezer);
 router.get('/deezer/callback', deezerCallback);

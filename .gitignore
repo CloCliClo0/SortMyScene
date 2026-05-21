@@ -6,6 +6,8 @@ web/node_modules/
 
 sql/
 
+.claude/
+
 README.md
 
 CHANGELOG.md
@@ -13,3 +15,5 @@ CHANGELOG.md
 API_ENDPOINTS.md
 
 IMPLEMENTATION_GUIDE.md
+
+problem.txt

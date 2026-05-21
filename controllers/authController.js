@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { QueryTypes } = require('sequelize');
 const sequelize = require('../lib/sequelize');
@@ -226,7 +227,7 @@ async function me(req, res) {
   try {
     const rows = await withDbTimeout(
       sequelize.query(
-        'SELECT id, email, is_admin FROM `User` WHERE id = :id LIMIT 1',
+        'SELECT id, email, is_admin, email_verified, theme, language FROM `User` WHERE id = :id LIMIT 1',
         {
           replacements: { id: Number(req.user.id) },
           type: QueryTypes.SELECT,
@@ -241,84 +242,151 @@ async function me(req, res) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    return res.json({ user });
+    return res.json({ user: { ...user, email_verified: Boolean(user.email_verified) } });
   } catch (error) {
     return sendDbError(res, error, 'Failed to get profile');
   }
 }
 
+// ─── Google OAuth2 — implémentation manuelle sans express-session ────────────
+// passport-google-oauth20 nécessite express-session pour stocker le state CSRF.
+// Sur Hostinger (sans session), on gère le state via un cookie httpOnly court-vivant.
+
+const GOOGLE_STATE_COOKIE = 'google_oauth_state';
+
 const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
 
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL:
-        process.env.GOOGLE_CALLBACK_URL || `${getBackendOrigin()}/api/auth/google/callback`,
-    },
-    async (accessToken, refreshToken, profile, done) => {
-      try {
-        const email = profile.emails?.[0]?.value;
-        if (!email) return done(new Error('No email from Google'));
+function connectGoogle(req, res) {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const callbackUrl =
+    process.env.GOOGLE_CALLBACK_URL || `${getBackendOrigin()}/api/auth/google/callback`;
 
-        const normalizedEmail = String(email).toLowerCase();
-        const rows = await withDbTimeout(
-          sequelize.query(
-            'SELECT id, email, is_admin FROM `User` WHERE email = :email LIMIT 1',
-            {
-              replacements: { email: normalizedEmail },
-              type: QueryTypes.SELECT,
-            }
-          ),
-          'google find user'
-        );
+  if (!clientId) {
+    return res.status(500).json({ message: 'GOOGLE_CLIENT_ID is not configured' });
+  }
 
-        let user = rows[0] || null;
-        if (!user) {
-          user = await withDbTimeout(
-            sequelize.query(
-              'INSERT INTO `User` (email) VALUES (:email)',
-              {
-                replacements: { email: normalizedEmail },
-              }
-            ).then(([result]) => ({
-              id: result.insertId,
-              email: normalizedEmail,
-              is_admin: false,
-            })),
-            'google create user'
-          );
-        }
+  // State CSRF : token aléatoire stocké dans un cookie httpOnly (valide 10 min)
+  const state = crypto.randomBytes(20).toString('hex');
+  const isProd = process.env.NODE_ENV === 'production';
+  res.cookie(GOOGLE_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    maxAge: 10 * 60 * 1000,
+  });
 
-        if (accessToken) {
-          await saveOAuthToken({
-            userId: user.id,
-            provider: 'youtube',
-            accessToken,
-            refreshToken: refreshToken || null,
-            expiresIn: null,
-          });
-        }
+  const scope = ['openid', 'email', 'profile'].join(' ');
+  const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  authUrl.searchParams.set('client_id', clientId);
+  authUrl.searchParams.set('redirect_uri', callbackUrl);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('scope', scope);
+  authUrl.searchParams.set('access_type', 'offline');
+  authUrl.searchParams.set('prompt', 'select_account');
+  authUrl.searchParams.set('state', state);
 
-        return done(null, user);
-      } catch (err) {
-        return done(err);
-      }
-    }
-  )
-);
+  return res.redirect(authUrl.toString());
+}
 
-function googleCallback(req, res) {
+async function googleCallback(req, res) {
+  const appOrigin = getAppOrigin();
   try {
-    const user = req.user;
-    const token = signToken(user);
-    setAuthCookie(res, token);
-    const appOrigin = getAppOrigin();
-    return res.redirect(`${appOrigin}/?googleAuth=success`);
+    const { code, state } = req.query;
+    const storedState = req.cookies?.[GOOGLE_STATE_COOKIE];
+
+    // Vérification CSRF
+    if (!code || !state || !storedState || state !== storedState) {
+      console.warn('[googleCallback] State mismatch or missing code/state');
+      return res.redirect(`${appOrigin}/login?error=google_failed`);
+    }
+
+    // Efface le cookie state immédiatement
+    res.clearCookie(GOOGLE_STATE_COOKIE, { httpOnly: true, sameSite: 'lax' });
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const callbackUrl =
+      process.env.GOOGLE_CALLBACK_URL || `${getBackendOrigin()}/api/auth/google/callback`;
+
+    if (!clientId || !clientSecret) {
+      return res.redirect(`${appOrigin}/login?error=google_failed`);
+    }
+
+    // Échange du code contre les tokens
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code: String(code),
+        grant_type: 'authorization_code',
+        redirect_uri: callbackUrl,
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      const body = await tokenRes.text();
+      console.error('[googleCallback] Token exchange failed:', tokenRes.status, body);
+      throw new Error('Google token exchange failed');
+    }
+
+    const tokenData = await tokenRes.json();
+
+    // Récupère les infos utilisateur
+    const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+
+    if (!userInfoRes.ok) throw new Error('Failed to get Google user info');
+    const userInfo = await userInfoRes.json();
+
+    const email = userInfo.email;
+    if (!email) throw new Error('No email returned by Google');
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    // Trouve ou crée l'utilisateur
+    const rows = await withDbTimeout(
+      sequelize.query(
+        'SELECT id, email, is_admin FROM `User` WHERE email = :email LIMIT 1',
+        { replacements: { email: normalizedEmail }, type: QueryTypes.SELECT }
+      ),
+      'google find user'
+    );
+
+    let user = rows[0] || null;
+    if (!user) {
+      user = await withDbTimeout(
+        sequelize.query(
+          'INSERT INTO `User` (email, email_verified) VALUES (:email, TRUE)',
+          { replacements: { email: normalizedEmail } }
+        ).then(([result]) => ({
+          id: result.insertId,
+          email: normalizedEmail,
+          is_admin: false,
+        })),
+        'google create user'
+      );
+    }
+
+    // Sauvegarde le token Google/YouTube si présent
+    if (tokenData.access_token) {
+      await saveOAuthToken({
+        userId: user.id,
+        provider: 'youtube',
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token || null,
+        expiresIn: tokenData.expires_in || null,
+      });
+    }
+
+    const jwtToken = signToken(user);
+    setAuthCookie(res, jwtToken);
+
+    return res.redirect(`${appOrigin}/login?googleAuth=success`);
   } catch (err) {
-    const appOrigin = getAppOrigin();
+    console.error('[googleCallback] Error:', err.message);
     return res.redirect(`${appOrigin}/login?error=google_failed`);
   }
 }
@@ -582,6 +650,7 @@ module.exports = {
   me,
   getProvidersStatus,
   passport,
+  connectGoogle,
   googleCallback,
   connectSpotify,
   spotifyCallback,

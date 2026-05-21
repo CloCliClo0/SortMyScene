@@ -52,4 +52,53 @@ Return ONLY the JSON array — no explanation, no markdown fences.
   return ids.filter((id) => typeof id === 'number');
 }
 
-module.exports = { filterSongsForScene };
+/**
+ * Generic version: filters an array of tracks using Gemini based on a scene description.
+ * Uses array indices to avoid issues with non-numeric platform IDs (Spotify/YouTube).
+ *
+ * @param {Array<{title: string, artist: string}>} tracks - Generic track objects.
+ * @param {string} sceneDescription - User's description of the desired scene/mood.
+ * @returns {Promise<Array>} Resolves to the filtered subset of the original tracks array.
+ */
+async function filterTracksForScene(tracks, sceneDescription) {
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+  const songList = tracks.map((t, index) => ({
+    id: index,
+    title: t.title || 'Unknown',
+    artist: t.artist || 'Unknown',
+  }));
+
+  const prompt = `
+You are a music curator. Given a list of songs and a scene description, select the songs that best fit the scene and return their indices.
+
+Scene description: "${sceneDescription}"
+
+Song list (JSON):
+${JSON.stringify(songList, null, 2)}
+
+Respond with a valid JSON array of indices (numbers from the list above) that match the scene. Example: [0, 2, 5]
+Return ONLY the JSON array — no explanation, no markdown fences.
+`.trim();
+
+  const result = await model.generateContent(prompt);
+  const text = result.response.text().trim();
+  const clean = text.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '').trim();
+
+  let indices;
+  try {
+    indices = JSON.parse(clean);
+  } catch {
+    throw new Error(`Gemini returned unexpected output: ${text}`);
+  }
+
+  if (!Array.isArray(indices)) {
+    throw new Error('Gemini response was not an array.');
+  }
+
+  return indices
+    .filter((i) => typeof i === 'number' && Number.isInteger(i) && i >= 0 && i < tracks.length)
+    .map((i) => tracks[i]);
+}
+
+module.exports = { filterSongsForScene, filterTracksForScene };

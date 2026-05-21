@@ -3,6 +3,9 @@ import { createContext, ReactNode, useContext, useEffect, useMemo, useState } fr
 type AuthUser = {
   id: number;
   email: string;
+  email_verified?: boolean;
+  theme?: string;
+  language?: string;
 };
 
 type AuthContextValue = {

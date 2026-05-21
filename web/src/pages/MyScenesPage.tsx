@@ -7,6 +7,7 @@ type Scene = {
   name: string;
   description: string;
   created_at: string;
+  image_url?: string | null;
   tracks: Array<{ id: number }>;
 };
 
@@ -15,19 +16,17 @@ function MyScenesPage() {
   const navigate = useNavigate();
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     async function loadScenes() {
       try {
-        const response = await fetch('/api/scenes', {
-          credentials: 'include',
-        });
-
+        const response = await fetch('/api/scenes', { credentials: 'include' });
         if (!response.ok) {
           setScenes([]);
           return;
         }
-
         const data = await response.json();
         setScenes(Array.isArray(data) ? data : []);
       } catch {
@@ -36,9 +35,33 @@ function MyScenesPage() {
         setLoading(false);
       }
     }
-
     loadScenes();
   }, []);
+
+  const handleDelete = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (!window.confirm(t('scenes.deleteConfirm'))) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/scenes/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        setScenes((prev) => prev.filter((s) => s.id !== id));
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const filtered = search.trim()
+    ? scenes.filter(
+        (s) =>
+          s.name.toLowerCase().includes(search.toLowerCase()) ||
+          s.description?.toLowerCase().includes(search.toLowerCase())
+      )
+    : scenes;
 
   return (
     <section className="space-y-6">
@@ -53,40 +76,51 @@ function MyScenesPage() {
             onClick={() => navigate('/studio')}
             className="rounded-full border border-cyan-300/50 bg-cyan-500/10 px-5 py-3 text-sm text-cyan-200 hover:bg-cyan-500/15"
           >
-            Create a new scene
+            {t('scenes.createCardTitle')}
           </button>
         </div>
         <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           className="w-full rounded-xl border-b-2 border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none md:max-w-md"
           placeholder={t('scenes.search')}
         />
-        <div className="flex flex-wrap gap-2">
-          <span className="glass-chip border-cyan-400/50 text-cyan-300">{t('scenes.filterAll')}</span>
-          <span className="glass-chip">{t('scenes.filterHighBpm')}</span>
-          <span className="glass-chip">{t('scenes.filterMelodic')}</span>
-          <span className="glass-chip">{t('scenes.filterLofi')}</span>
-          <span className="glass-chip">{t('scenes.filterDark')}</span>
-        </div>
       </header>
 
       {loading ? (
         <p className="text-slate-400">{t('common.loadingScenes')}</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {scenes.map((scene) => (
-            <article key={scene.id} className="card-panel overflow-hidden p-0">
-              <div className="relative h-36 bg-gradient-to-br from-cyan-500/35 to-purple-500/35">
+          {filtered.map((scene) => (
+            <article
+              key={scene.id}
+              onClick={() => navigate(`/scenes/${scene.id}`)}
+              className="card-panel cursor-pointer overflow-hidden p-0 transition hover:border-white/20"
+            >
+              <div className="relative h-36 overflow-hidden bg-gradient-to-br from-cyan-500/35 to-purple-500/35">
+                {scene.image_url && (
+                  <img src={scene.image_url} alt={scene.name} className="absolute inset-0 h-full w-full object-cover opacity-80" />
+                )}
                 <span className="absolute right-3 top-3 rounded-md bg-black/40 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white">
-                  {scene.tracks?.length ?? 0} tracks
+                  {scene.tracks?.length ?? 0} {t('scenes.tracksCount')}
                 </span>
               </div>
               <div className="p-4">
                 <div className="mb-3 flex items-start justify-between gap-2">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h3 className="text-xl font-semibold text-white">{scene.name}</h3>
-                    <p className="text-sm text-slate-400">{scene.tracks?.length ?? 0} {t('common.tracks')}</p>
+                    <p className="text-sm text-slate-400">
+                      {new Date(scene.created_at).toLocaleDateString()}
+                    </p>
                   </div>
-                  <button className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">{t('common.export')}</button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDelete(e, scene.id)}
+                    disabled={deletingId === scene.id}
+                    className="rounded-lg border border-red-300/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 hover:bg-red-500/20 disabled:opacity-50"
+                  >
+                    {t('scenes.delete')}
+                  </button>
                 </div>
                 <p className="line-clamp-2 text-sm text-slate-400">{scene.description}</p>
               </div>
@@ -94,7 +128,9 @@ function MyScenesPage() {
           ))}
 
           <article className="card-panel flex min-h-52 flex-col items-center justify-center border-dashed border-white/20 text-center">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/90 text-2xl">+</div>
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/90 text-2xl">
+              +
+            </div>
             <p className="text-lg text-white">{t('scenes.createCardTitle')}</p>
             <p className="mt-1 text-sm text-slate-400">{t('scenes.createCardText')}</p>
             <button
@@ -106,7 +142,12 @@ function MyScenesPage() {
             </button>
           </article>
 
-          {!scenes.length && <p className="text-slate-400">{t('common.noScenes')}</p>}
+          {!filtered.length && search && (
+            <p className="col-span-full text-slate-400">Aucune scène ne correspond à cette recherche.</p>
+          )}
+          {!scenes.length && !loading && (
+            <p className="col-span-full text-slate-400">{t('common.noScenes')}</p>
+          )}
         </div>
       )}
     </section>

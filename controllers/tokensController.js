@@ -14,26 +14,50 @@ async function getTokenByProvider(req, res) {
 
     const rows = await withDbTimeout(
       sequelize.query(
-        `SELECT id, user_id, provider, access_token, refresh_token, expires_in
-         FROM \`OAuthToken\`
+        `SELECT id, provider FROM \`OAuthToken\`
          WHERE user_id = :userId AND provider = :provider
          LIMIT 1`,
-        {
-          replacements: { userId, provider },
-          type: QueryTypes.SELECT,
-        }
+        { replacements: { userId, provider }, type: QueryTypes.SELECT }
       ),
       'get provider token'
     );
 
-    const token = rows[0] || null;
+    // Retourne 404 si pas de token → le frontend peut utiliser response.ok pour détecter l'état
+    if (!rows.length) {
+      return res.status(404).json({ connected: false });
+    }
 
-    return res.json(token || null);
+    return res.json({ connected: true, provider });
   } catch (error) {
     return sendDbError(res, error, 'Failed to retrieve token');
   }
 }
 
+async function deleteTokenByProvider(req, res) {
+  try {
+    const { provider } = req.params;
+
+    if (!['deezer', 'spotify', 'youtube'].includes(provider)) {
+      return res.status(400).json({ message: 'provider must be deezer, spotify or youtube' });
+    }
+
+    const userId = Number(req.user.id);
+
+    await withDbTimeout(
+      sequelize.query(
+        `DELETE FROM \`OAuthToken\` WHERE user_id = :userId AND provider = :provider`,
+        { replacements: { userId, provider } }
+      ),
+      'delete provider token'
+    );
+
+    return res.json({ success: true, provider });
+  } catch (error) {
+    return sendDbError(res, error, 'Failed to disconnect provider');
+  }
+}
+
 module.exports = {
   getTokenByProvider,
+  deleteTokenByProvider,
 };

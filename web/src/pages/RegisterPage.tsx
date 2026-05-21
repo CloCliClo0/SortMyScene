@@ -30,7 +30,7 @@ function RegisterPage() {
 
     try {
       await register(email, password);
-      navigate('/', { replace: true });
+      navigate('/verify-email', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.signup'));
     } finally {

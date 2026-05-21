@@ -31,6 +31,10 @@ const Scene = sequelize.define('Scene', {
     type: DataTypes.STRING(50),
     defaultValue: 'popularity',
   },
+  image_url: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
 }, {
   tableName: 'Scene',
   timestamps: true,

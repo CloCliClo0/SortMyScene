@@ -48,7 +48,11 @@ function AuthMenu() {
                 <p className="text-sm font-medium text-white">{user.email}</p>
                 <p className="text-xs text-slate-400">{t('auth.connectedAs')} {user.email}</p>
               </div>
-              <button type="button" className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-200 hover:bg-white/5">
+              <button
+                type="button"
+                onClick={() => { setIsOpen(false); navigate('/settings'); }}
+                className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-200 hover:bg-white/5"
+              >
                 {t('auth.profile')}
               </button>
               <button

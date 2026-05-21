@@ -1,4 +1,5 @@
-import { Outlet } from 'react-router-dom';
+import { Link, Outlet } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import AuthMenu from '../components/AuthMenu';
 import BottomNav from '../components/BottomNav';
 import Sidebar from '../components/Sidebar';
@@ -6,6 +7,7 @@ import { useI18n } from '../i18n/LanguageContext';
 
 function AppShell() {
   const { lang, setLang, t } = useI18n();
+  const { user } = useAuth();
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -35,6 +37,15 @@ function AppShell() {
       </header>
 
       <Sidebar />
+
+      {user && user.email_verified === false && (
+        <div className="sticky top-[57px] z-30 flex items-center justify-between gap-3 bg-amber-500/15 px-4 py-2 text-sm text-amber-200 md:top-0 md:ml-[280px] border-b border-amber-400/20">
+          <span>{t('verify.banner')}</span>
+          <Link to="/verify-email" className="shrink-0 rounded-full border border-amber-300/50 px-3 py-0.5 text-xs text-amber-100 hover:bg-amber-400/10">
+            {t('verify.bannerAction')}
+          </Link>
+        </div>
+      )}
 
       <main className="mx-auto max-w-7xl px-4 pb-24 pt-6 md:ml-[280px] md:px-8 md:pb-8 md:pt-8">
         <div className="mb-4 hidden items-center justify-end gap-2 md:flex">

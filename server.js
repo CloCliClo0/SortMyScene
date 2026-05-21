@@ -21,6 +21,10 @@ const { withDbTimeout } = require('./lib/dbGuard');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Hostinger utilise nginx comme reverse proxy HTTPS → HTTP (localhost:PORT)
+// Sans trust proxy, req.secure est false même en HTTPS, et les cookies sécurisés sont mal envoyés
+app.set('trust proxy', 1);
+
 function maskDatabaseUrl(databaseUrl) {
   if (!databaseUrl) return 'undefined';
   try {
