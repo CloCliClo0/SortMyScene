@@ -1,9 +1,11 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import { useI18n } from '../i18n/LanguageContext';
 
 function VerifyEmailPage() {
   const { t } = useI18n();
+  const { refresh } = useAuth();
   const navigate = useNavigate();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
@@ -31,6 +33,7 @@ function VerifyEmailPage() {
         throw new Error((payload as { message?: string }).message || 'Code invalide.');
       }
       setSuccessMsg(t('verify.success'));
+      await refresh(); // met à jour email_verified dans AuthContext
       setTimeout(() => navigate('/', { replace: true }), 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur de vérification.');

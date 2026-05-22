@@ -1,136 +1,112 @@
 const nodemailer = require('nodemailer');
 
-/**
- * Configuration du service email
- * Utilise les variables d'environnement pour la configuration SMTP
- */
 function createTransporter() {
-  // Configuration pour le service d'email A2F
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '465'),
+    secure: process.env.SMTP_SECURE !== 'false', // true par défaut (port 465 SSL)
     auth: {
-      user: process.env.MAIL_A2F_HOST || process.env.SMTP_USER,
-      pass: process.env.MAIL_A2F_PASS || process.env.SMTP_PASSWORD,
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASSWORD,
     },
   });
 }
 
-/**
- * Envoie un email de vérification avec un code 6 caractères
- */
+function isSmtpConfigured() {
+  return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+}
+
+function getSenderAddress() {
+  // SMTP_FROM peut être "Nom <email>" ou juste "email"
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER || '';
+  // Si SMTP_FROM contient déjà un nom entre guillemets ou un <>, on l'utilise tel quel
+  if (from.includes('<') || from.startsWith('"')) return from;
+  return `"SortMyScene" <${from}>`;
+}
+
 async function sendVerificationEmail(email, verificationCode) {
+  if (!isSmtpConfigured()) {
+    console.warn('[emailService] SMTP not configured (SMTP_HOST/SMTP_USER/SMTP_PASSWORD missing).');
+    return { success: false, error: 'Email service not configured' };
+  }
+
   try {
-    if (!process.env.MAIL_A2F_HOST || !process.env.MAIL_A2F_PASS) {
-      console.warn('[emailService] MAIL_A2F_HOST or MAIL_A2F_PASS not configured. Email not sent.');
-      return { success: false, message: 'Email service not configured' };
-    }
-
     const transporter = createTransporter();
-    const appName = 'SortMyScene';
-    const appOrigin = process.env.APP_ORIGIN || 'https://sortmyscene.fr';
-
-    const mailOptions = {
-      from: `"${appName}" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+    const info = await transporter.sendMail({
+      from: getSenderAddress(),
       to: email,
-      subject: `[${appName}] Email Verification Code`,
+      subject: '[SortMyScene] Code de vérification email',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #06b6d4;">Welcome to ${appName}</h2>
-          <p>Thank you for registering! Please verify your email address to continue.</p>
-          
-          <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
-            <p style="margin: 0; color: #6b7280; font-size: 14px;">Your verification code is:</p>
-            <p style="margin: 10px 0; font-size: 32px; font-weight: bold; color: #06b6d4; letter-spacing: 5px;">
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0c1324;color:#dce1fb;padding:32px;border-radius:12px">
+          <h2 style="color:#22d3ee;margin-bottom:8px">Vérification de votre adresse email</h2>
+          <p style="color:#94a3b8">Merci de vous être inscrit sur SortMyScene. Utilisez le code ci-dessous pour vérifier votre adresse email.</p>
+
+          <div style="background:#1e293b;border:1px solid #334155;padding:24px;border-radius:8px;text-align:center;margin:24px 0">
+            <p style="margin:0;color:#94a3b8;font-size:13px">Votre code de vérification :</p>
+            <p style="margin:12px 0;font-size:36px;font-weight:bold;color:#22d3ee;letter-spacing:8px;font-family:monospace">
               ${verificationCode}
             </p>
-            <p style="margin: 10px 0; color: #6b7280; font-size: 12px;">This code will expire in 24 hours</p>
+            <p style="margin:0;color:#64748b;font-size:12px">Ce code expire dans 24 heures</p>
           </div>
 
-          <p>Enter this code in the verification form to complete your registration.</p>
-          
-          <div style="border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 30px; color: #6b7280; font-size: 12px;">
-            <p>If you didn't create this account, please ignore this email.</p>
-            <p>&copy; 2024 ${appName}. All rights reserved.</p>
-          </div>
+          <p style="color:#94a3b8">Entrez ce code sur la page de vérification pour activer votre compte.</p>
+          <p style="color:#475569;font-size:12px;margin-top:32px;border-top:1px solid #1e293b;padding-top:16px">
+            Si vous n'avez pas créé de compte, ignorez cet email.<br>
+            &copy; 2025 SortMyScene
+          </p>
         </div>
       `,
-      text: `
-Welcome to ${appName}
+      text: `Votre code de vérification SortMyScene : ${verificationCode}\n\nCe code expire dans 24 heures.`,
+    });
 
-Thank you for registering! Please verify your email address.
-
-Your verification code is: ${verificationCode}
-
-This code will expire in 24 hours.
-
-If you didn't create this account, please ignore this email.
-
-© 2024 ${appName}
-      `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log('[emailService] Verification email sent:', info.response);
+    console.log('[emailService] Verification email sent to', email, '—', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('[emailService] Error sending email:', error.message);
+    console.error('[emailService] Failed to send verification email:', error.message);
     return { success: false, error: error.message };
   }
 }
 
-/**
- * Envoie un email de réinitialisation de mot de passe
- */
 async function sendPasswordResetEmail(email, resetCode) {
+  if (!isSmtpConfigured()) {
+    console.warn('[emailService] SMTP not configured.');
+    return { success: false, error: 'Email service not configured' };
+  }
+
   try {
-    if (!process.env.MAIL_A2F_HOST || !process.env.MAIL_A2F_PASS) {
-      console.warn('[emailService] MAIL_A2F_HOST or MAIL_A2F_PASS not configured. Email not sent.');
-      return { success: false, message: 'Email service not configured' };
-    }
-
     const transporter = createTransporter();
-    const appName = 'SortMyScene';
-    const appOrigin = process.env.APP_ORIGIN || 'https://sortmyscene.fr';
-
-    const mailOptions = {
-      from: `"${appName}" <${process.env.MAIL_A2F_HOST || process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+    const info = await transporter.sendMail({
+      from: getSenderAddress(),
       to: email,
-      subject: `[${appName}] Password Reset Code`,
+      subject: '[SortMyScene] Réinitialisation de mot de passe',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #06b6d4;">Password Reset Request</h2>
-          <p>We received a request to reset your password. Use the code below to reset it.</p>
-          
-          <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
-            <p style="margin: 0; color: #6b7280; font-size: 14px;">Your password reset code is:</p>
-            <p style="margin: 10px 0; font-size: 32px; font-weight: bold; color: #06b6d4; letter-spacing: 5px;">
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0c1324;color:#dce1fb;padding:32px;border-radius:12px">
+          <h2 style="color:#22d3ee;margin-bottom:8px">Réinitialisation de mot de passe</h2>
+          <p style="color:#94a3b8">Nous avons reçu une demande de réinitialisation de votre mot de passe.</p>
+
+          <div style="background:#1e293b;border:1px solid #334155;padding:24px;border-radius:8px;text-align:center;margin:24px 0">
+            <p style="margin:0;color:#94a3b8;font-size:13px">Votre code de réinitialisation :</p>
+            <p style="margin:12px 0;font-size:36px;font-weight:bold;color:#22d3ee;letter-spacing:8px;font-family:monospace">
               ${resetCode}
             </p>
-            <p style="margin: 10px 0; color: #6b7280; font-size: 12px;">This code will expire in 1 hour</p>
+            <p style="margin:0;color:#64748b;font-size:12px">Ce code expire dans 1 heure</p>
           </div>
 
-          <p>Enter this code on the password reset page to set a new password.</p>
-          
-          <div style="border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 30px; color: #6b7280; font-size: 12px;">
-            <p>If you didn't request a password reset, please ignore this email.</p>
-            <p>&copy; 2024 ${appName}. All rights reserved.</p>
-          </div>
+          <p style="color:#94a3b8">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
+          <p style="color:#475569;font-size:12px;margin-top:32px;border-top:1px solid #1e293b;padding-top:16px">
+            &copy; 2025 SortMyScene
+          </p>
         </div>
       `,
-    };
+      text: `Votre code de réinitialisation SortMyScene : ${resetCode}\n\nCe code expire dans 1 heure.`,
+    });
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log('[emailService] Password reset email sent:', info.response);
+    console.log('[emailService] Password reset email sent to', email, '—', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('[emailService] Error sending email:', error.message);
+    console.error('[emailService] Failed to send password reset email:', error.message);
     return { success: false, error: error.message };
   }
 }
 
-module.exports = {
-  sendVerificationEmail,
-  sendPasswordResetEmail,
-};
+module.exports = { sendVerificationEmail, sendPasswordResetEmail };
