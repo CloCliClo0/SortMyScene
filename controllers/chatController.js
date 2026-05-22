@@ -24,8 +24,10 @@ async function chat(req, res) {
     const reply = await chatWithAssistant(safeHistory, message.trim());
     return res.json({ reply });
   } catch (error) {
-    console.error('[chatController] Gemini error:', error.message);
-    return res.status(500).json({ error: 'AI assistant temporarily unavailable' });
+    const msg = error?.message || String(error);
+    console.error('[chatController] Gemini error:', msg);
+    // Surface the real error so it can be diagnosed in the browser
+    return res.status(500).json({ error: `AI assistant error: ${msg}` });
   }
 }
 
