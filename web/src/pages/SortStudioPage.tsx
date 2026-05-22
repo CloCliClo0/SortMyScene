@@ -131,7 +131,7 @@ function SortStudioPage() {
           // Spotify : item.track  |  YouTube : item.snippet
           const track = item.track ?? {};
           const snippet = item.snippet ?? {};
-          const ms: number | null = track.duration_ms ?? null;
+          const ms: number | undefined = track.duration_ms ?? undefined;
           const title =
             track.name ??
             snippet.title ??
