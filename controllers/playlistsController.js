@@ -133,56 +133,70 @@ async function getFreshToken(userId, provider) {
 async function getSpotifyPlaylists(accessToken, userId) {
   let token = accessToken;
 
-  const doRequest = (t) =>
-    fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
-      headers: { Authorization: `Bearer ${t}` },
-    });
-
-  let response = await doRequest(token);
-
-  if (response.status === 401 && userId) {
-    const newToken = await refreshSpotifyToken(userId);
-    if (newToken) {
-      token = newToken;
-      response = await doRequest(token);
+  const doPage = async (t, offset = 0) => {
+    const res = await fetch(
+      `https://api.spotify.com/v1/me/playlists?limit=50&offset=${offset}`,
+      { headers: { Authorization: `Bearer ${t}` } }
+    );
+    if (res.status === 401 && userId && offset === 0) {
+      const newToken = await refreshSpotifyToken(userId);
+      if (newToken) {
+        token = newToken;
+        return doPage(token, offset);
+      }
     }
+    if (!res.ok) throw new Error(`Spotify API error: ${res.status}`);
+    return res.json();
+  };
+
+  const first = await doPage(token, 0);
+  let items = first.items || [];
+
+  // Récupère jusqu'à 100 playlists (2 pages de 50)
+  if (first.next && items.length < 100) {
+    const second = await doPage(token, 50);
+    items = items.concat(second.items || []);
   }
 
-  if (!response.ok) throw new Error(`Spotify API error: ${response.status}`);
-
-  const data = await response.json();
-  return (data.items || []).map((item) => ({
+  return items.map((item) => ({
     id: item.id,
     name: item.name,
     image: item.images?.[0]?.url || null,
     tracks: item.tracks?.total ?? 0,
     provider: 'spotify',
-    raw: item,
   }));
 }
 
 async function getSpotifyPlaylistTracks(accessToken, playlistId, userId) {
   let token = accessToken;
 
-  const doRequest = (t) =>
-    fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`, {
-      headers: { Authorization: `Bearer ${t}` },
-    });
-
-  let response = await doRequest(token);
-
-  if (response.status === 401 && userId) {
-    const newToken = await refreshSpotifyToken(userId);
-    if (newToken) {
-      token = newToken;
-      response = await doRequest(token);
+  const doPage = async (t, offset = 0) => {
+    const res = await fetch(
+      `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&offset=${offset}`,
+      { headers: { Authorization: `Bearer ${t}` } }
+    );
+    if (res.status === 401 && userId && offset === 0) {
+      const newToken = await refreshSpotifyToken(userId);
+      if (newToken) {
+        token = newToken;
+        return doPage(token, offset);
+      }
     }
+    if (!res.ok) throw new Error(`Spotify API error: ${res.status}`);
+    return res.json();
+  };
+
+  const first = await doPage(token, 0);
+  let items = first.items || [];
+
+  // Récupère la page suivante si elle existe (max 200 titres au total)
+  if (first.next && items.length < 200) {
+    const second = await doPage(token, 100);
+    items = items.concat(second.items || []);
   }
 
-  if (!response.ok) throw new Error(`Spotify API error: ${response.status}`);
-
-  const data = await response.json();
-  return data.items || [];
+  // Filtre les entrées nulles (titres supprimés / fichiers locaux)
+  return items.filter((item) => item?.track != null);
 }
 
 // ─── API YouTube ──────────────────────────────────────────────────────────────
@@ -190,26 +204,35 @@ async function getSpotifyPlaylistTracks(accessToken, playlistId, userId) {
 async function getYoutubePlaylists(accessToken, userId) {
   let token = accessToken;
 
-  const doRequest = (t) =>
-    fetch(
-      'https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50',
-      { headers: { Authorization: `Bearer ${t}` } }
-    );
+  const doPage = async (t, pageToken = null) => {
+    const url = new URL('https://www.googleapis.com/youtube/v3/playlists');
+    url.searchParams.set('part', 'snippet,contentDetails');
+    url.searchParams.set('mine', 'true');
+    url.searchParams.set('maxResults', '50');
+    if (pageToken) url.searchParams.set('pageToken', pageToken);
 
-  let response = await doRequest(token);
-
-  if (response.status === 401 && userId) {
-    const newToken = await refreshYoutubeToken(userId);
-    if (newToken) {
-      token = newToken;
-      response = await doRequest(token);
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${t}` } });
+    if (res.status === 401 && userId && !pageToken) {
+      const newToken = await refreshYoutubeToken(userId);
+      if (newToken) {
+        token = newToken;
+        return doPage(token, null);
+      }
     }
+    if (!res.ok) throw new Error(`YouTube API error: ${res.status}`);
+    return res.json();
+  };
+
+  const first = await doPage(token, null);
+  let items = first.items || [];
+
+  // Récupère la page suivante si elle existe
+  if (first.nextPageToken && items.length < 100) {
+    const second = await doPage(token, first.nextPageToken);
+    items = items.concat(second.items || []);
   }
 
-  if (!response.ok) throw new Error(`YouTube API error: ${response.status}`);
-
-  const data = await response.json();
-  return (data.items || []).map((item) => ({
+  return items.map((item) => ({
     id: item.id,
     name: item.snippet?.title || 'YouTube playlist',
     image:
@@ -219,7 +242,6 @@ async function getYoutubePlaylists(accessToken, userId) {
       null,
     tracks: item.contentDetails?.itemCount ?? 0,
     provider: 'youtube',
-    raw: item,
   }));
 }
 

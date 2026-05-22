@@ -123,16 +123,27 @@ function SortStudioPage() {
           return;
         }
         const data = await response.json();
-        const rows: TrackRow[] = (data.items || data).map((item: any, index: number) => {
-          const snippet = item.track?.name ? item.track : item.snippet || {};
-          const ms = snippet.duration_ms || null;
+        const items: any[] = (data.items || data)
+          // Spotify renvoie track:null pour les fichiers locaux / titres supprimés
+          .filter((item: any) => item?.track != null || item?.snippet != null);
+
+        const rows: TrackRow[] = items.map((item: any, index: number) => {
+          // Spotify : item.track  |  YouTube : item.snippet
+          const track = item.track ?? {};
+          const snippet = item.snippet ?? {};
+          const ms: number | null = track.duration_ms ?? null;
+          const title =
+            track.name ??
+            snippet.title ??
+            'Unknown title';
+          const artist =
+            track.artists?.map((a: any) => a.name).join(', ') ??
+            snippet.videoOwnerChannelTitle ??
+            'Unknown artist';
           return {
-            id: item.id || item.track?.id || String(index),
-            title: snippet.name || snippet.title || 'Unknown title',
-            artist:
-              snippet.artists?.map((a: any) => a.name).join(', ') ||
-              snippet.videoOwnerChannelTitle ||
-              'Unknown artist',
+            id: track.id ?? snippet.resourceId?.videoId ?? String(index),
+            title,
+            artist,
             duration_ms: ms,
             duration: ms
               ? `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`
@@ -140,7 +151,7 @@ function SortStudioPage() {
             provider,
           };
         });
-        setTracks(rows.slice(0, 50));
+        setTracks(rows.slice(0, 100));
       } catch {
         setStatusMessage('Unable to load playlist tracks.');
       } finally {

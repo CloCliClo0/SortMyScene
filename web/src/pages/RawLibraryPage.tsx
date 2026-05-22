@@ -39,9 +39,13 @@ function RawLibraryPage() {
             collected.push(
               ...(data.items || data).map((item: any) => ({
                 id: item.id,
-                name: item.name,
-                tracks: item.tracks?.total ?? item.tracks ?? 0,
-                image: item.images?.[0]?.url || null,
+                name: item.name ?? 'Untitled',
+                // backend normalise tracks en nombre; fallback format API brut
+                tracks: typeof item.tracks === 'number'
+                  ? item.tracks
+                  : (item.tracks?.total ?? 0),
+                // backend renvoie `image`; format brut Spotify renvoie images[]
+                image: item.image ?? item.images?.[0]?.url ?? null,
                 provider: 'spotify' as const,
               }))
             );
@@ -55,9 +59,12 @@ function RawLibraryPage() {
             collected.push(
               ...(data.items || data).map((item: any) => ({
                 id: item.id,
-                name: item.snippet?.title ?? item.title,
-                tracks: item.contentDetails?.itemCount ?? 0,
-                image: item.snippet?.thumbnails?.medium?.url || null,
+                // backend normalise en `name`; fallback format API brut
+                name: item.name ?? item.snippet?.title ?? 'Untitled',
+                tracks: typeof item.tracks === 'number'
+                  ? item.tracks
+                  : (item.contentDetails?.itemCount ?? 0),
+                image: item.image ?? item.snippet?.thumbnails?.medium?.url ?? null,
                 provider: 'youtube' as const,
               }))
             );
